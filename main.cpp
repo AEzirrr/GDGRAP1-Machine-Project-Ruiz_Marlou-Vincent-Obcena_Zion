@@ -127,8 +127,8 @@ int main(void)
     if (!glfwInit())
         return -1;
 
-    float windowWidth = 640;
-    float windowHeight = 640;
+    float windowWidth = 1080;
+    float windowHeight = 1080;
 
     /* Create a windowed mode window and its OpenGL context */
     window = glfwCreateWindow(windowWidth, windowHeight, "GDGRAP1 Machine Project-Ruiz_Marlou Vincent-Obcena_Zion", NULL, NULL);
@@ -403,9 +403,10 @@ int main(void)
         GLuint specPhongAddress = glGetUniformLocation(mainShader.ID, "specPhong");
         glUniform1f(specPhongAddress, specPhong);
 
-        //glActivateTexture(GL_TEXTURE0);
+        glActiveTexture(GL_TEXTURE0);
         GLuint tex0Address = glGetUniformLocation(mainShader.ID, "tex0");
-        glUniform1i(tex0Address, 0);        
+        glUniform1i(tex0Address, 0);     
+        glActiveTexture(GL_TEXTURE1);
         GLuint normTexAddress = glGetUniformLocation(mainShader.ID, "norm_tex");
         glUniform1i(normTexAddress, 1);
 
