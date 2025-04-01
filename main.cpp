@@ -32,12 +32,57 @@ float axisY = 0;
 
 //glm::mat4 identity_matrix(1.0);
 
-bool isDaySkybox = true;
-
 bool isPressedD, isPressedA, isPressedW, isPressedS, 
 isPressedQ, isPressedE, isPressedZ, isPressedX,
 isPressedF, isPressedH, isPressedT, isPressedG, isPressedC, isPressedV,
 isPressedLEFT, isPressedRIGHT, isPressedUP, isPressedDOWN;
+
+//Day time skybox
+std::string dayFacesSkybox[]{
+"Skybox/Day/day_rt.png",
+"Skybox/Day/day_lf.png",
+"Skybox/Day/day_up.png",
+"Skybox/Day/day_dn.png",
+"Skybox/Day/day_ft.png",
+"Skybox/Day/day_bk.png"
+};
+
+//night time skybox
+std::string nightFacesSkybox[]{
+"Skybox/Night/night_rt.png",
+"Skybox/Night/night_lf.png",
+"Skybox/Night/night_up.png",
+"Skybox/Night/night_dn.png",
+"Skybox/Night/night_ft.png",
+"Skybox/Night/night_bk.png"
+};
+
+unsigned int skyboxTex;
+std::string* currentSkybox = nightFacesSkybox;
+bool isDaySkybox = true;
+
+void LoadSkyboxTextures(std::string skyboxFaces[]) {
+    glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
+
+    for (unsigned int i = 0; i < 6; i++) {
+        int w, h, skyCChannel;
+        stbi_set_flip_vertically_on_load(false);
+
+        unsigned char* data = stbi_load(
+            skyboxFaces[i].c_str(), &w, &h, &skyCChannel, 0
+        );
+
+        if (data) {
+            glTexImage2D(
+                GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, data
+            );
+        }
+        stbi_image_free(data);
+    }
+
+    stbi_set_flip_vertically_on_load(true);
+}
 
 void Key_Callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
@@ -107,8 +152,14 @@ void ProcessInput() {
     };
 
     // Scaling
-    if (keyStates[GLFW_KEY_Q]) scaleVal -= 0.0001f;
-    if (keyStates[GLFW_KEY_E]) scaleVal += 0.0001f;
+    if (keyStates[GLFW_KEY_Q]) {
+        currentSkybox = dayFacesSkybox;
+        LoadSkyboxTextures(dayFacesSkybox);
+    };
+    if (keyStates[GLFW_KEY_E]) {
+        currentSkybox = nightFacesSkybox;
+        LoadSkyboxTextures(nightFacesSkybox);
+    };
 
     // Rotation
     if (keyStates[GLFW_KEY_UP]) pitch += 0.01;
@@ -117,7 +168,6 @@ void ProcessInput() {
     if (keyStates[GLFW_KEY_LEFT]) yaw -= 0.01;
     if (keyStates[GLFW_KEY_RIGHT]) yaw += 0.01;
 }
-
 
 int main(void)
 {
@@ -212,28 +262,6 @@ int main(void)
     glEnableVertexAttribArray(0);
     //////////////////////////////////////////////////////////////////////////////////////////////
 
-    //Day time skybox
-    std::string dayFacesSkybox[]{
-    "Skybox/Day/day_rt.png",
-    "Skybox/Day/day_lf.png",
-    "Skybox/Day/day_up.png",
-    "Skybox/Day/day_dn.png",
-    "Skybox/Day/day_ft.png",
-    "Skybox/Day/day_bk.png"
-    };
-
-    //night time skybox
-    std::string nightFacesSkybox[]{
-    "Skybox/Night/night_rt.png",
-    "Skybox/Night/night_lf.png",
-    "Skybox/Night/night_up.png",
-    "Skybox/Night/night_dn.png",
-    "Skybox/Night/night_ft.png",
-    "Skybox/Night/night_bk.png"
-    };
-
-    unsigned int skyboxTex;
-
     glGenTextures(1, &skyboxTex);
     glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
 
@@ -245,6 +273,7 @@ int main(void)
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+    /*
     for (unsigned int i = 0; i < 6; i++) {
         int w, h, skyCChannel;
         stbi_set_flip_vertically_on_load(false);
@@ -274,6 +303,7 @@ int main(void)
 
     }
     stbi_set_flip_vertically_on_load(true);
+    */
 
     glm::mat4 projectionMatrix = glm::perspective(
         glm::radians(60.0f), //FOV
@@ -368,6 +398,10 @@ int main(void)
         unsigned int sky_viewLoc = glGetUniformLocation(skyboxShader.ID, "view");
         glUniformMatrix4fv(sky_viewLoc, 1, GL_FALSE, glm::value_ptr(sky_view));
 
+        glBindVertexArray(skyboxVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
         glDepthMask(GL_TRUE);
         glDepthFunc(GL_LESS);
 
