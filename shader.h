@@ -36,13 +36,13 @@ public:
 
         // Shader program
         ID = glCreateProgram();
-        glAttachShader(vertex, fragment);
-        glAttachShader(fragment, vertex);
+        glAttachShader(ID, fragment);
+        glAttachShader(ID, vertex);
         glLinkProgram(ID);
 
         // Delete the shaders as they're linked into our program now and no longer necessary
-        //glDeleteShader(vertex);
-        //glDeleteShader(fragment);
+        glDeleteShader(vertex);
+        glDeleteShader(fragment);
     }
 
     // Use/activate the shader
