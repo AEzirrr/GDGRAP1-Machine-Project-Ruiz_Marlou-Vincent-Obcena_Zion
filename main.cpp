@@ -1,19 +1,7 @@
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-#include <string>
-#include <iostream>
-#include <cmath>
-#include <unordered_map>
-
-#define TINYOBJLOADER_IMPLEMENTATION
-#include "tiny_obj_loader.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "model.h"
+#include "camera.h"
+#include "light.h"
+#include "shader.h"
 
 #define pi 3.141592653589793238462643383279502884197
 
@@ -42,125 +30,14 @@ float thetaZ = 0;
 float axisX = 1;
 float axisY = 0;
 
-glm::mat4 identity_matrix(1.0);
+//glm::mat4 identity_matrix(1.0);
 
 bool isDaySkybox = true;
-
 
 bool isPressedD, isPressedA, isPressedW, isPressedS, 
 isPressedQ, isPressedE, isPressedZ, isPressedX,
 isPressedF, isPressedH, isPressedT, isPressedG, isPressedC, isPressedV,
 isPressedLEFT, isPressedRIGHT, isPressedUP, isPressedDOWN;
-
-
-
-
-
-
-// Camera class
-class MyCamera {
-protected:
-    glm::vec3 front; // Front dir
-    glm::vec3 up; // Up dir
-    float yaw; // Yaw angle
-    float pitch; // Pitch angle
-    float distance; // Distance from the target
-
-public:
-    glm::vec3 position;
-
-    // Constructor
-    MyCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist)
-        : position(pos), front(frontDir), up(upDir), yaw(y), pitch(p), distance(dist) {
-        UpdateCameraVectors();
-    }
-
-    virtual glm::mat4 GetProjectionMatrix(float aspect) const = 0;
-
-    // Function to get the view matrix
-    glm::mat4 GetViewMatrix(const glm::vec3& target) const {
-        return glm::lookAt(position, target, up);
-    }
-
-    // Function to process mouse movement
-    void ProcessMouseMovement(float xoffset, float yoffset, float sensitivity = 0.1f) {
-        yaw += xoffset * sensitivity;
-        pitch += yoffset * sensitivity;
-
-        if (pitch > 89.0f) pitch = 89.0f;
-        if (pitch < -89.0f) pitch = -89.0f;
-
-        UpdateCameraVectors();
-    }
-
-    // Function to update the camera position
-    void UpdateCameraPosition(const glm::vec3& target) {
-        position.x = target.x + distance * cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-        position.y = target.y + distance * sin(glm::radians(pitch));
-        position.z = target.z + distance * sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    }
-
-private:
-    // Function to update the camera vectors
-    void UpdateCameraVectors() {
-        glm::vec3 newFront;
-        newFront.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-        newFront.y = sin(glm::radians(pitch));
-        newFront.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-        front = glm::normalize(newFront);
-    }
-};
-
-// Perspective camera class
-class PerspectiveCamera : public MyCamera {
-private:
-    float fov;
-
-public:
-    // Constructor
-    PerspectiveCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist, float fovAngle)
-        : MyCamera(pos, frontDir, upDir, y, p, dist), fov(fovAngle) {
-    }
-
-    // Function to get the projection matrix
-    glm::mat4 GetProjectionMatrix(float aspect) const override {
-        return glm::perspective(glm::radians(fov), aspect, 0.1f, 100.0f);
-    }
-};
-
-// Orthographic camera class
-class OrthographicCamera : public MyCamera {
-private:
-    float orthoSize;
-
-public:
-    // Constructor
-    OrthographicCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist, float size)
-        : MyCamera(pos, frontDir, upDir, y, p, dist), orthoSize(size) {
-    }
-
-    // Function to get the projection matrix
-    glm::mat4 GetProjectionMatrix(float aspect) const override {
-        return glm::ortho(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, -50.0f, 50.0f);
-    }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 void Key_Callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
@@ -229,8 +106,6 @@ void ProcessInput() {
         
     };
 
-
-
     // Scaling
     if (keyStates[GLFW_KEY_Q]) scaleVal -= 0.0001f;
     if (keyStates[GLFW_KEY_E]) scaleVal += 0.0001f;
@@ -268,7 +143,28 @@ int main(void)
     gladLoadGL();
 
 
-    GLfloat UV[]{
+
+
+    //          MinX MinY Width Height
+    //glViewport(320, 0, 640/2, 480);
+
+    glfwSetKeyCallback(window, Key_Callback);
+
+
+    Shader mainShader("Shaders/sample.vert", "Shaders/sample.frag");
+    Shader skyboxShader("Shaders/skybox.vert", "Shaders/skybox.frag");
+
+    Model3D testModel(
+        "3D/plane.obj",          // Model path
+        "3D/brickwall.jpg",        // Texture path (optional)
+        "3D/brickwall_normal.jpg",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(1.0f, 1.0f, 1.0f)   // Initial scale
+    );
+
+    /*
+    *     GLfloat UV[]{
         0.f, 1.f,
         0.f, 0.f,
         1.f, 1.f,
@@ -292,86 +188,6 @@ int main(void)
         0
     );
 
-
-    //          MinX MinY Width Height
-    //glViewport(320, 0, 640/2, 480);
-
-    glfwSetKeyCallback(window, Key_Callback);
-
-
-    std::fstream vertSrc("Shaders/sample.vert");
-    std::stringstream vertBuff;
-    //Add the file stream to the string stream
-    vertBuff << vertSrc.rdbuf();
-
-    std::string vertS = vertBuff.str();
-    const char* v = vertS.c_str();
-    ///////////////////////////////////////////
-    std::fstream fragSrc("Shaders/sample.frag");
-    std::stringstream fragBuff;
-    //Add the file stream to the string stream
-    fragBuff << fragSrc.rdbuf();
-
-    std::string fragS = fragBuff.str();
-    const char* f = fragS.c_str();
-
-
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &v, NULL);
-    glCompileShader(vertexShader);
-
-
-    GLuint fragShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragShader, 1, &f, NULL);
-    glCompileShader(fragShader);
-
-
-    GLuint shaderProg = glCreateProgram();
-
-    glAttachShader(shaderProg, vertexShader);
-    glAttachShader(shaderProg, fragShader);
-
-
-    glLinkProgram(shaderProg);
-
-    /////////////////////////////SKYBOX SHADER///////////////////////////////////////
-    std::fstream sky_vertSrc("Shaders/skybox.vert");
-    std::stringstream sky_vertBuff;
-    sky_vertBuff << sky_vertSrc.rdbuf();
-
-    std::string sky_vertS = sky_vertBuff.str();
-    const char* sky_v = sky_vertS.c_str();
-
-    std::fstream sky_fragSrc("Shaders/skybox.frag");
-    std::stringstream sky_fragBuff;
-    sky_fragBuff << sky_fragSrc.rdbuf();
-    std::string sky_fragS = sky_fragBuff.str();
-    const char* sky_f = sky_fragS.c_str();
-
-    GLuint sky_vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(sky_vertexShader, 1, &sky_v, NULL);
-    glCompileShader(sky_vertexShader);
-
-    GLuint sky_fragShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(sky_fragShader, 1, &sky_f, NULL);
-    glCompileShader(sky_fragShader);
-
-    GLuint skyboxShaderProg = glCreateProgram();
-    glAttachShader(skyboxShaderProg, sky_vertexShader);
-    glAttachShader(skyboxShaderProg, sky_fragShader);
-
-    glLinkProgram(skyboxShaderProg);
-    ////////////////////////////////////////////////////////////////////////////////
-
-    /*
-      7--------6
-     /|       /|
-    4--------5 |
-    | |      | |
-    | 3------|-2
-    |/       |/
-    0--------1
-    */
     //Vertices for the cube
     float skyboxVertices[]{
     -1.f, -1.f, 1.f, //0
@@ -796,7 +612,7 @@ int main(void)
     float radius = 0.5f;
     float prevAngle = 0;
     float yOffset = 0.54;
-
+    */
     glm::mat4 projectionMatrix = glm::perspective(
         glm::radians(60.0f), //FOV
         windowHeight / windowWidth, //Aspect Ratio
@@ -804,20 +620,16 @@ int main(void)
         100.f //Z far
     );
 
-
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
-
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    
     //Light position
     glm::vec3 lightPos = glm::vec3(-10, 3, 0);
     //light color
     glm::vec3 lightColor = glm::vec3(1, 1, 1); 
-
     float brightness = 10;
-
-
     //Ambient Color
     glm::vec3 ambientColor = lightColor;
     //Ambient Str
@@ -880,32 +692,24 @@ int main(void)
 
         glm::mat4 viewMatrix = glm::lookAt(cameraPos, cameraCenter, worldUp);
 
-        glDepthMask(GL_FALSE);
-        glDepthFunc(GL_LEQUAL);
+        //glDepthMask(GL_FALSE);
+        //glDepthFunc(GL_LEQUAL);
 
+        //glm::mat4 sky_view = glm::mat4(1.0);
+        //sky_view = glm::mat4(
+        //    glm::mat3(viewMatrix)
+        //);
 
-        glUseProgram(skyboxShaderProg);
-        glm::mat4 sky_view = glm::mat4(1.0);
-        sky_view = glm::mat4(
-            glm::mat3(viewMatrix)
-        );
+        //skyboxShader.setMat4("view", viewMatrix);
+        //skyboxShader.setMat4("projection", projectionMatrix);
 
-        unsigned int sky_projectionLoc = glGetUniformLocation(skyboxShaderProg, "projection");
-        glUniformMatrix4fv(sky_projectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+        //glBindVertexArray(skyboxVAO);
+        //glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
 
-        unsigned int sky_viewLoc = glGetUniformLocation(skyboxShaderProg, "view");
-        glUniformMatrix4fv(sky_viewLoc, 1, GL_FALSE, glm::value_ptr(sky_view));
+        //glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 
-
-        glBindVertexArray(skyboxVAO);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
-
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-
-        glDepthMask(GL_TRUE);
-        glDepthFunc(GL_LESS);
-
-        glUseProgram(shaderProg);
+        //glDepthMask(GL_TRUE);
+        //glDepthFunc(GL_LESS);
 
         //translation
         glm::mat4 transformation_matrix = glm::translate(identity_matrix, glm::vec3(x_mod, y_mod, z_mod));
@@ -918,58 +722,36 @@ int main(void)
         transformation_matrix = glm::rotate(transformation_matrix, glm::radians(thetaY), glm::vec3(0, 1, 0)); 
         transformation_matrix = glm::rotate(transformation_matrix, glm::radians(thetaZ), glm::vec3(0, 0, 1)); 
 
-        unsigned int viewLoc = glGetUniformLocation(shaderProg, "view");
+
+        mainShader.use();
+        unsigned int viewLoc = glGetUniformLocation(mainShader.ID, "view");
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
-
-        unsigned int projLoc = glGetUniformLocation(shaderProg, "projection");
+        unsigned int projLoc = glGetUniformLocation(mainShader.ID, "projection");
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-
-        unsigned int transformLoc = glGetUniformLocation(shaderProg, "transform");
-        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transformation_matrix));
-
-
-        glBindTexture(GL_TEXTURE_2D, texture);
-
-        GLuint lightAddress = glGetUniformLocation(shaderProg, "lightPos");
+        GLuint lightAddress = glGetUniformLocation(mainShader.ID, "lightPos");
         glUniform3fv(lightAddress, 1, glm::value_ptr(lightPos));
-
-        GLuint lightColorAddress = glGetUniformLocation(shaderProg, "lightColor");
+        GLuint lightColorAddress = glGetUniformLocation(mainShader.ID, "lightColor");
         glUniform3fv(lightColorAddress, 1, glm::value_ptr(lightColor));
-
-        GLuint brightnessAddress = glGetUniformLocation(shaderProg, "brightness");
-        glUniform1f(brightnessAddress, brightness);
-
-
-        GLuint ambientStrAddress = glGetUniformLocation(shaderProg, "ambientStr");
+        GLuint ambientStrAddress = glGetUniformLocation(mainShader.ID, "ambientStr");
         glUniform1f(ambientStrAddress, ambientStr);
-
-        GLuint ambientColorAddress = glGetUniformLocation(shaderProg, "ambientColor");
+        GLuint ambientColorAddress = glGetUniformLocation(mainShader.ID, "ambientColor");
         glUniform3fv(ambientColorAddress, 1, glm::value_ptr(ambientColor));
-
-
-
-        GLuint cameraPosAddress = glGetUniformLocation(shaderProg, "cameraPos");
+        GLuint cameraPosAddress = glGetUniformLocation(mainShader.ID, "cameraPos");
         glUniform3fv(cameraPosAddress, 1, glm::value_ptr(cameraPos));
-
-        GLuint specStrAddress = glGetUniformLocation(shaderProg, "specStr");
+        GLuint specStrAddress = glGetUniformLocation(mainShader.ID, "specStr");
         glUniform1f(specStrAddress, specStr);
-
-        GLuint specPhongAddress = glGetUniformLocation(shaderProg, "specPhong");
+        GLuint specPhongAddress = glGetUniformLocation(mainShader.ID, "specPhong");
         glUniform1f(specPhongAddress, specPhong);
-
-		glActiveTexture(GL_TEXTURE0);
-        GLuint tex0Address = glGetUniformLocation(shaderProg, "tex0");
-        glBindTexture(GL_TEXTURE_2D, texture);
+        GLuint tex0Address = glGetUniformLocation(mainShader.ID, "tex0");
         glUniform1i(tex0Address, 0);
 
-        glActiveTexture(GL_TEXTURE1);
-        GLuint tex1Address = glGetUniformLocation(shaderProg, "norm_tex");
-        glBindTexture(GL_TEXTURE_2D, norm_tex);
-        glUniform1i(tex1Address, 1);
+        testModel.updateTransform(
+            thetaX, thetaY, thetaZ,  // Rotation
+            x_mod, y_mod, z_mod,     // Position
+            scaleVal                 // Scale
+        );
 
-        glUseProgram(shaderProg);
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, fullVertexData.size() / 14);
+        testModel.draw(mainShader.ID);  // Pass the shader program ID
 
         glfwSwapBuffers(window);
 
