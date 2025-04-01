@@ -44,10 +44,123 @@ float axisY = 0;
 
 glm::mat4 identity_matrix(1.0);
 
+bool isDaySkybox = true;
+
+
 bool isPressedD, isPressedA, isPressedW, isPressedS, 
 isPressedQ, isPressedE, isPressedZ, isPressedX,
 isPressedF, isPressedH, isPressedT, isPressedG, isPressedC, isPressedV,
 isPressedLEFT, isPressedRIGHT, isPressedUP, isPressedDOWN;
+
+
+
+
+
+
+// Camera class
+class MyCamera {
+protected:
+    glm::vec3 front; // Front dir
+    glm::vec3 up; // Up dir
+    float yaw; // Yaw angle
+    float pitch; // Pitch angle
+    float distance; // Distance from the target
+
+public:
+    glm::vec3 position;
+
+    // Constructor
+    MyCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist)
+        : position(pos), front(frontDir), up(upDir), yaw(y), pitch(p), distance(dist) {
+        UpdateCameraVectors();
+    }
+
+    virtual glm::mat4 GetProjectionMatrix(float aspect) const = 0;
+
+    // Function to get the view matrix
+    glm::mat4 GetViewMatrix(const glm::vec3& target) const {
+        return glm::lookAt(position, target, up);
+    }
+
+    // Function to process mouse movement
+    void ProcessMouseMovement(float xoffset, float yoffset, float sensitivity = 0.1f) {
+        yaw += xoffset * sensitivity;
+        pitch += yoffset * sensitivity;
+
+        if (pitch > 89.0f) pitch = 89.0f;
+        if (pitch < -89.0f) pitch = -89.0f;
+
+        UpdateCameraVectors();
+    }
+
+    // Function to update the camera position
+    void UpdateCameraPosition(const glm::vec3& target) {
+        position.x = target.x + distance * cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        position.y = target.y + distance * sin(glm::radians(pitch));
+        position.z = target.z + distance * sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+    }
+
+private:
+    // Function to update the camera vectors
+    void UpdateCameraVectors() {
+        glm::vec3 newFront;
+        newFront.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        newFront.y = sin(glm::radians(pitch));
+        newFront.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+        front = glm::normalize(newFront);
+    }
+};
+
+// Perspective camera class
+class PerspectiveCamera : public MyCamera {
+private:
+    float fov;
+
+public:
+    // Constructor
+    PerspectiveCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist, float fovAngle)
+        : MyCamera(pos, frontDir, upDir, y, p, dist), fov(fovAngle) {
+    }
+
+    // Function to get the projection matrix
+    glm::mat4 GetProjectionMatrix(float aspect) const override {
+        return glm::perspective(glm::radians(fov), aspect, 0.1f, 100.0f);
+    }
+};
+
+// Orthographic camera class
+class OrthographicCamera : public MyCamera {
+private:
+    float orthoSize;
+
+public:
+    // Constructor
+    OrthographicCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist, float size)
+        : MyCamera(pos, frontDir, upDir, y, p, dist), orthoSize(size) {
+    }
+
+    // Function to get the projection matrix
+    glm::mat4 GetProjectionMatrix(float aspect) const override {
+        return glm::ortho(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, -50.0f, 50.0f);
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void Key_Callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
@@ -143,7 +256,7 @@ int main(void)
     float windowHeight = 640;
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(windowWidth, windowHeight, "Marlou Vincent Ruiz", NULL, NULL);
+    window = glfwCreateWindow(windowWidth, windowHeight, "GDGRAP1 Machine Project-Ruiz_Marlou Vincent-Obcena_Zion", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -308,15 +421,26 @@ int main(void)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(skyboxIndices), &skyboxIndices, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    /////////
+    //////////////////////////////////////////////////////////////////////////////////////////////
 
-    std::string facesSkybox[]{
-    "Skybox/rainbow_rt.png",
-    "Skybox/rainbow_lf.png",
-    "Skybox/rainbow_up.png",
-    "Skybox/rainbow_dn.png",
-    "Skybox/rainbow_ft.png",
-    "Skybox/rainbow_bk.png"
+	//Day time skybox
+    std::string dayFacesSkybox[]{
+    "Skybox/Day/day_rt.png",
+    "Skybox/Day/day_lf.png",
+    "Skybox/Day/day_up.png",
+    "Skybox/Day/day_dn.png",
+    "Skybox/Day/day_ft.png",
+    "Skybox/Day/day_bk.png"
+    };
+
+    //night time skybox
+    std::string nightFacesSkybox[]{
+    "Skybox/Night/night_rt.png",
+    "Skybox/Night/night_lf.png",
+    "Skybox/Night/night_up.png",
+    "Skybox/Night/night_dn.png",
+    "Skybox/Night/night_ft.png",
+    "Skybox/Night/night_bk.png"
     };
 
     unsigned int skyboxTex;
@@ -337,7 +461,7 @@ int main(void)
         stbi_set_flip_vertically_on_load(false);
 
         unsigned char* data = stbi_load(
-            facesSkybox[i].c_str(),
+            nightFacesSkybox[i].c_str(),
             &w,
             &h,
             &skyCChannel,
