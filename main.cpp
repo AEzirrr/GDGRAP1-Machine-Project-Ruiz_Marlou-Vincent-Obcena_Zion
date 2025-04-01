@@ -357,20 +357,16 @@ int main(void)
         glDepthMask(GL_FALSE);
         glDepthFunc(GL_LEQUAL);
 
+        skyboxShader.use();
         glm::mat4 sky_view = glm::mat4(1.0);
         sky_view = glm::mat4(
             glm::mat3(viewMatrix)
         );
 
-        skyboxShader.use();
-        unsigned int viewLoc = glGetUniformLocation(skyboxShader.ID, "view");
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(sky_view));
-        unsigned int projLoc = glGetUniformLocation(skyboxShader.ID, "projection");
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-
-        glBindVertexArray(skyboxVAO);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+        unsigned int sky_projectionLoc = glGetUniformLocation(skyboxShader.ID, "projection");
+        glUniformMatrix4fv(sky_projectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+        unsigned int sky_viewLoc = glGetUniformLocation(skyboxShader.ID, "view");
+        glUniformMatrix4fv(sky_viewLoc, 1, GL_FALSE, glm::value_ptr(sky_view));
 
         glDepthMask(GL_TRUE);
         glDepthFunc(GL_LESS);
@@ -388,9 +384,9 @@ int main(void)
 
 
         mainShader.use();
-        viewLoc = glGetUniformLocation(mainShader.ID, "view");
+        unsigned int viewLoc = glGetUniformLocation(mainShader.ID, "view");
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
-        projLoc = glGetUniformLocation(mainShader.ID, "projection");
+        unsigned int projLoc = glGetUniformLocation(mainShader.ID, "projection");
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         GLuint lightAddress = glGetUniformLocation(mainShader.ID, "lightPos");
         glUniform3fv(lightAddress, 1, glm::value_ptr(lightPos));
@@ -406,6 +402,8 @@ int main(void)
         glUniform1f(specStrAddress, specStr);
         GLuint specPhongAddress = glGetUniformLocation(mainShader.ID, "specPhong");
         glUniform1f(specPhongAddress, specPhong);
+
+        //glActivateTexture(GL_TEXTURE0);
         GLuint tex0Address = glGetUniformLocation(mainShader.ID, "tex0");
         glUniform1i(tex0Address, 0);        
         GLuint normTexAddress = glGetUniformLocation(mainShader.ID, "norm_tex");
