@@ -151,14 +151,20 @@ void ProcessInput() {
         
     };
 
-    // Scaling
+    // Lighting
     if (keyStates[GLFW_KEY_Q]) {
         currentSkybox = dayFacesSkybox;
         LoadSkyboxTextures(dayFacesSkybox);
+        lightColor = warmLightColor;  // Set to warm light
+        ambientColor = warmLightColor * 0.5f;  // Match ambient to light color
+        isWarmLight = true;
     };
     if (keyStates[GLFW_KEY_E]) {
         currentSkybox = nightFacesSkybox;
         LoadSkyboxTextures(nightFacesSkybox);
+        lightColor = coldLightColor;  // Set to cold light
+        ambientColor = coldLightColor * 0.5f;  // Match ambient to light color
+        isWarmLight = false;
     };
 
     // Rotation
@@ -197,7 +203,6 @@ int main(void)
 
     glfwSetKeyCallback(window, Key_Callback);
 
-
     Shader mainShader("Shaders/sample.vert", "Shaders/sample.frag");
     Shader skyboxShader("Shaders/skybox.vert", "Shaders/skybox.frag");
 
@@ -210,6 +215,14 @@ int main(void)
         glm::vec3(1.0f, 1.0f, 1.0f)   // Initial scale
     );
 
+    Model3D kartModel(
+        "3D/Kart/GoKart.obj",          // Model path
+        "3D/Kart/GoKart.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
     //Vertices for the cube
     float skyboxVertices[]{
@@ -273,37 +286,11 @@ int main(void)
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    /*
-    for (unsigned int i = 0; i < 6; i++) {
-        int w, h, skyCChannel;
-        stbi_set_flip_vertically_on_load(false);
-
-        unsigned char* data = stbi_load(
-            nightFacesSkybox[i].c_str(),
-            &w,
-            &h,
-            &skyCChannel,
-            0
-        );
-
-        if (data) {
-            glTexImage2D(
-                GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-                0,
-                GL_RGB,
-                w,
-                h,
-                0,
-                GL_RGB,
-                GL_UNSIGNED_BYTE,
-                data
-            );
-        }
-        stbi_image_free(data);
-
-    }
-    stbi_set_flip_vertically_on_load(true);
-    */
+    currentSkybox = dayFacesSkybox;
+    LoadSkyboxTextures(dayFacesSkybox);
+    lightColor = warmLightColor;  // Set to warm light
+    ambientColor = warmLightColor * 0.5f;  // Match ambient to light color
+    isWarmLight = true;
 
     glm::mat4 projectionMatrix = glm::perspective(
         glm::radians(60.0f), //FOV
@@ -315,21 +302,6 @@ int main(void)
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    
-    //Light position
-    glm::vec3 lightPos = glm::vec3(-10, 3, 0);
-    //light color
-    glm::vec3 lightColor = glm::vec3(1, 1, 1); 
-    float brightness = 10;
-    //Ambient Color
-    glm::vec3 ambientColor = lightColor;
-    //Ambient Str
-    float ambientStr = 0.5f;
-    
-    float specStr = 3.0f;
-    float specPhong = 20;
-
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
@@ -450,7 +422,14 @@ int main(void)
             scaleVal                 // Scale
         );
 
-        testModel.draw(mainShader.ID);  // Pass the shader program ID
+        kartModel.updateTransform(
+            thetaX, thetaY, thetaZ,  // Rotation
+            x_mod, y_mod, z_mod,     // Position
+            scaleVal                 // Scale
+        );
+
+        //testModel.draw(mainShader.ID);  // Pass the shader program ID
+        kartModel.draw(mainShader.ID);  // Pass the shader program ID
 
         glfwSwapBuffers(window);
 

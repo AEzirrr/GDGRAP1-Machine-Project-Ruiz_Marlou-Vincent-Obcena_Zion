@@ -10,6 +10,18 @@
 #include <cmath>
 #include <unordered_map>
 
+glm::vec3 warmLightColor = glm::vec3(1.0f, 0.7f, 0.5f);  // Orange-ish warm light
+glm::vec3 coldLightColor = glm::vec3(0.7f, 0.8f, 1.0f);  // Blue-ish cold light
+bool isWarmLight = true;  // Start with warm light
+
+//Light position
+glm::vec3 lightPos = glm::vec3(-10, 3, 0);
+glm::vec3 lightColor = warmLightColor;  // Start with warm light
+float brightness = 10;
+glm::vec3 ambientColor = warmLightColor * 0.5f;  // Match ambient
+float ambientStr = 0.5f;
+float specStr = 3.0f;
+float specPhong = 20;
 
 // Light class
 class Light {
