@@ -426,14 +426,16 @@ int main(void)
         GLuint specPhongAddress = glGetUniformLocation(mainShader.ID, "specPhong");
         glUniform1f(specPhongAddress, specPhong);
 
+
+        // TEST MODEL
         glActiveTexture(GL_TEXTURE0);
         GLuint tex0Address = glGetUniformLocation(mainShader.ID, "tex0");
-        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindTexture(GL_TEXTURE_2D, testModel.texture);
         glUniform1i(tex0Address, 0);
 
         glActiveTexture(GL_TEXTURE1);
         GLuint tex1Address = glGetUniformLocation(mainShader.ID, "norm_tex");
-        glBindTexture(GL_TEXTURE_2D, norm_tex);
+        glBindTexture(GL_TEXTURE_2D, testModel.normalMap);
         glUniform1i(tex1Address, 1);
 
         testModel.updateTransform(
@@ -442,13 +444,23 @@ int main(void)
             scaleVal                 // Scale
         );
 
+        testModel.draw(mainShader.ID);  // Pass the shader program ID
+
+        // KART MODEL
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, kartModel.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, kartModel.normalMap);
+        glUniform1i(tex1Address, 1);
+
         kartModel.updateTransform(
             thetaX, thetaY, thetaZ,  // Rotation
             x_mod, y_mod, z_mod,     // Position
             scaleVal                 // Scale
         );
 
-        //testModel.draw(mainShader.ID);  // Pass the shader program ID
         kartModel.draw(mainShader.ID);  // Pass the shader program ID
 
         glfwSwapBuffers(window);
