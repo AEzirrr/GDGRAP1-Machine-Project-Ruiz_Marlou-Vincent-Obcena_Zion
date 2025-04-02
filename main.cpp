@@ -392,29 +392,49 @@ int main(void)
         mainShader.use();
         unsigned int viewLoc = glGetUniformLocation(mainShader.ID, "view");
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
         unsigned int projLoc = glGetUniformLocation(mainShader.ID, "projection");
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+        unsigned int transformLoc = glGetUniformLocation(mainShader.ID, "transform");
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transformation_matrix));
+
+
         GLuint lightAddress = glGetUniformLocation(mainShader.ID, "lightPos");
         glUniform3fv(lightAddress, 1, glm::value_ptr(lightPos));
+
         GLuint lightColorAddress = glGetUniformLocation(mainShader.ID, "lightColor");
         glUniform3fv(lightColorAddress, 1, glm::value_ptr(lightColor));
+
+        GLuint brightnessAddress = glGetUniformLocation(mainShader.ID, "brightness");
+        glUniform1f(brightnessAddress, brightness);
+
+
         GLuint ambientStrAddress = glGetUniformLocation(mainShader.ID, "ambientStr");
         glUniform1f(ambientStrAddress, ambientStr);
+
         GLuint ambientColorAddress = glGetUniformLocation(mainShader.ID, "ambientColor");
         glUniform3fv(ambientColorAddress, 1, glm::value_ptr(ambientColor));
+
+
         GLuint cameraPosAddress = glGetUniformLocation(mainShader.ID, "cameraPos");
         glUniform3fv(cameraPosAddress, 1, glm::value_ptr(cameraPos));
+
         GLuint specStrAddress = glGetUniformLocation(mainShader.ID, "specStr");
         glUniform1f(specStrAddress, specStr);
+
         GLuint specPhongAddress = glGetUniformLocation(mainShader.ID, "specPhong");
         glUniform1f(specPhongAddress, specPhong);
 
         glActiveTexture(GL_TEXTURE0);
         GLuint tex0Address = glGetUniformLocation(mainShader.ID, "tex0");
-        glUniform1i(tex0Address, 0);     
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glUniform1i(tex0Address, 0);
+
         glActiveTexture(GL_TEXTURE1);
-        GLuint normTexAddress = glGetUniformLocation(mainShader.ID, "norm_tex");
-        glUniform1i(normTexAddress, 1);
+        GLuint tex1Address = glGetUniformLocation(mainShader.ID, "norm_tex");
+        glBindTexture(GL_TEXTURE_2D, norm_tex);
+        glUniform1i(tex1Address, 1);
 
         testModel.updateTransform(
             thetaX, thetaY, thetaZ,  // Rotation
