@@ -17,7 +17,7 @@ bool isWarmLight = true;  // Start with warm light
 //Light position
 glm::vec3 lightPos = glm::vec3(-10, 3, 0);
 glm::vec3 lightColor = warmLightColor;  // Start with warm light
-float brightness = 10;
+float brightness = 1;
 glm::vec3 ambientColor = warmLightColor * 0.5f;  // Match ambient
 float ambientStr = 0.5f;
 float specStr = 3.0f;
