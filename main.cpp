@@ -5,30 +5,92 @@
 
 #define pi 3.141592653589793238462643383279502884197
 
-float moveSpeed = 0.001f;
-float camSpeed = 0.001f;
+float moveSpeed = 0.055f;
+float turnSpeed = 0.05f;
+float camSpeed = 0.01f;
+
+float ghost1Speed = 0.07f;
+float ghost2Speed = 0.04f;
 
 std::unordered_map<int, bool> keyStates;
 
-float x_mod = 0;
+///////// PLAYER VARIABLES /////////
+
+float x_mod = -20;
 float y_mod = 0;
-float z_mod = -20;
-
-float x_cam = 0;
-float y_cam = 0;
-float z_cam = 0;
-
-float yaw = 270;
-float pitch = 0;
-
-float scaleVal = 1.5;
+float z_mod = 0;
 
 float thetaX = 0;
 float thetaY = 0;
 float thetaZ = 0;
 
+float x_cam = 0;
+float y_cam = 0;
+float z_cam = 0;
+
+float yaw = 0;
+float pitch = -15;
+
+// 1st person camera
+float frontCamX = 0;
+float frontCamY = 0;
+float frontCamZ = 0;
+float frontCamYaw = 0;
+float frontCamPitch = 0;
+
+////////////////////////////////////
+
+///////// GHOST VARIABLES /////////
+
+float ghost1x_mod = -20;
+float ghost1y_mod = 0;
+float ghost1z_mod = -20;
+
+float ghost2x_mod = -20;
+float ghost2y_mod = 0;
+float ghost2z_mod = 20;
+
+bool ghostPaused = false;
+bool spaceKeyPressed = false;
+
+////////////////////////////////////
+
+float scaleVal = 1.5;
+float roadScaleVal = 50;
+
 float axisX = 1;
 float axisY = 0;
+
+double lastMouseX = 320.0f, lastMouseY = 320.0f; // Last mouse position
+bool isMouseActive = true; // bool to check if the mouse is active
+bool mouseControlEnabled = true; // bool to check if mouse control is enabled
+
+bool useFrontCamera = false;
+bool zKeyPressed = false;
+
+///////// RACE VARIABLES /////////
+
+double startTime;
+bool countdownActive = true;
+
+double raceTime;
+bool raceFinished = false;
+
+bool playerFinished = false;
+bool playerTimeRecorded = false;
+double playerLapTime;
+
+bool ghost1Finished = false;
+bool ghost1TimeRecorded = false;
+double ghost1LapTime;
+
+bool ghost2Finished = false;
+bool ghost2TimeRecorded = false;
+double ghost2LapTime;
+
+//////////////////////////////////
+
+
 
 //glm::mat4 identity_matrix(1.0);
 
@@ -61,6 +123,7 @@ unsigned int skyboxTex;
 std::string* currentSkybox = nightFacesSkybox;
 bool isDaySkybox = true;
 
+
 void LoadSkyboxTextures(std::string skyboxFaces[]) {
     glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
 
@@ -84,6 +147,42 @@ void LoadSkyboxTextures(std::string skyboxFaces[]) {
     stbi_set_flip_vertically_on_load(true);
 }
 
+void Mouse_Callback(GLFWwindow* window, double xpos, double ypos) {
+    static bool firstMouse = true;
+    static float lastX = 320.0f, lastY = 320.0f; // Initial mouse position
+
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        if (firstMouse) {
+            lastX = xpos;
+            lastY = ypos;
+            firstMouse = false;
+        }
+
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to top
+
+        lastX = xpos;
+        lastY = ypos;
+
+        float sensitivity = 0.1f; // Adjust this value to control the sensitivity
+        xoffset *= sensitivity;
+        yoffset *= sensitivity;
+
+        yaw += xoffset;
+        pitch += yoffset;
+
+        // Constrain the pitch to prevent screen flipping
+        if (pitch > 89.0f)
+            pitch = 89.0f;
+        if (pitch < -89.0f)
+            pitch = -89.0f;
+    }
+    else {
+        firstMouse = true; // Reset the flag when the left mouse button is released
+    }
+}
+
+
 void Key_Callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
         keyStates[key] = true;
@@ -93,63 +192,95 @@ void Key_Callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
 }
 
+
 // Function to process input
 void ProcessInput() {
+    if (countdownActive) {
+        return; // Do not process input if countdown is active
+    }
 
     glm::vec3 front;
     front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
     front.y = sin(glm::radians(pitch));
     front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    front = glm::normalize(front); 
+    front = glm::normalize(front);
 
     glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f)));
 
     // Object movement
-    if (keyStates[GLFW_KEY_H]) { 
-        x_mod += moveSpeed; 
-        std::cout << "CurrX: " << x_mod << std::endl;
+
+	if (playerFinished == false) {
+        //move forward
+        if (keyStates[GLFW_KEY_W]) {
+            x_mod += moveSpeed;
+            if (!keyStates[GLFW_KEY_A] && !keyStates[GLFW_KEY_D]) { //if not turning just go straight
+                if (thetaY > 0) {
+                    thetaY -= 0.1f;
+                    frontCamYaw += 0.1f;
+                }
+                else if (thetaY < 0) {
+                    thetaY += 0.1f;
+                    frontCamYaw -= 0.1f;
+                }
+            }
+        }
+        //move backwards
+        if (keyStates[GLFW_KEY_S]) {
+            x_mod -= moveSpeed;
+            if (!keyStates[GLFW_KEY_A] && !keyStates[GLFW_KEY_D]) { //if not turning just go straight
+                if (thetaY > 0) {
+                    thetaY -= 0.1f;
+                    frontCamYaw += 0.1f;
+                }
+                else if (thetaY < 0) {
+                    thetaY += 0.1f;
+                    frontCamYaw -= 0.1f;
+                }
+            }
+        }
+        //turn left
+        if (keyStates[GLFW_KEY_A]) {
+            if (keyStates[GLFW_KEY_W] || keyStates[GLFW_KEY_S]) { //only be able to turn if moving
+                z_mod -= moveSpeed;
+            }
+
+            if (thetaY < 8.0f) {
+                thetaY += 0.1f;
+                frontCamYaw -= 0.1f;
+            }
+            std::cout << "CurrZ: " << z_mod << std::endl;
+        }
+        //turn right
+        if (keyStates[GLFW_KEY_D]) {
+            if (keyStates[GLFW_KEY_W] || keyStates[GLFW_KEY_S]) { //only be able to turn if moving
+                z_mod += moveSpeed;
+            }
+
+            if (thetaY > -8.0f) {
+                thetaY -= 0.1f;
+                frontCamYaw += 0.1f;
+            }
+            std::cout << "CurrZ: " << z_mod << std::endl;
+        }
+	}
+
+    // Ghost pausing
+    if (keyStates[GLFW_KEY_SPACE] && !spaceKeyPressed) {
+        ghostPaused = !ghostPaused; // Toggle camera
+        spaceKeyPressed = true;
     }
-    if (keyStates[GLFW_KEY_F]) {
-        x_mod -= moveSpeed; 
-        std::cout << "CurrX: " << x_mod << std::endl;
-    } 
-    if (keyStates[GLFW_KEY_T]) {
-        y_mod += moveSpeed; 
-        std::cout << "CurrY: " << y_mod << std::endl;
-    } 
-    if (keyStates[GLFW_KEY_G]) {
-        y_mod -= moveSpeed; 
-        std::cout << "CurrY: " << y_mod << std::endl;
-    } 
-    if (keyStates[GLFW_KEY_Z]) {
-        z_mod -= moveSpeed; 
-        std::cout << "CurrZ: " << z_mod << std::endl;
-    } 
-    if (keyStates[GLFW_KEY_X]) {
-        z_mod += moveSpeed; 
-        std::cout << "CurrZ: " << z_mod << std::endl;
-    } 
+    else if (!keyStates[GLFW_KEY_SPACE]) {
+        spaceKeyPressed = false;
+    }
 
-    if (keyStates[GLFW_KEY_W]) {
-        x_cam += front.x * camSpeed;
-        z_cam += front.z * camSpeed;
-    };
-    if (keyStates[GLFW_KEY_S]) {
-        x_cam -= front.x * camSpeed;
-        z_cam -= front.z * camSpeed;
-    };
-    if (keyStates[GLFW_KEY_A]) {
-        x_cam -= right.x * camSpeed;
-        z_cam -= right.z * camSpeed;
-    };
-    if (keyStates[GLFW_KEY_D]) {
-        x_cam += right.x * camSpeed;
-        z_cam += right.z * camSpeed;
-    };
-
-    if (keyStates[GLFW_KEY_SPACE]) {
-        
-    };
+    // Camera switching
+    if (keyStates[GLFW_KEY_Z] && !zKeyPressed) {
+        useFrontCamera = !useFrontCamera; // Toggle camera
+        zKeyPressed = true;
+    }
+    else if (!keyStates[GLFW_KEY_Z]) {
+        zKeyPressed = false;
+    }
 
     // Lighting
     if (keyStates[GLFW_KEY_Q]) {
@@ -168,12 +299,13 @@ void ProcessInput() {
     };
 
     // Rotation
-    if (keyStates[GLFW_KEY_UP]) pitch += 0.01;
-    if (keyStates[GLFW_KEY_DOWN]) pitch -= 0.01;
+    if (keyStates[GLFW_KEY_UP]) pitch += 0.05;
+    if (keyStates[GLFW_KEY_DOWN]) pitch -= 0.05;
 
-    if (keyStates[GLFW_KEY_LEFT]) yaw -= 0.01;
-    if (keyStates[GLFW_KEY_RIGHT]) yaw += 0.01;
+    if (keyStates[GLFW_KEY_LEFT]) yaw -= 0.05;
+    if (keyStates[GLFW_KEY_RIGHT]) yaw += 0.05;
 }
+
 
 int main(void)
 {
@@ -198,27 +330,104 @@ int main(void)
     glfwMakeContextCurrent(window);
     gladLoadGL();
 
+
+    startTime = glfwGetTime();
+
+
     //          MinX MinY Width Height
     //glViewport(320, 0, 640/2, 480);
 
+    glfwSetCursorPosCallback(window, Mouse_Callback);
     glfwSetKeyCallback(window, Key_Callback);
 
     Shader mainShader("Shaders/sample.vert", "Shaders/sample.frag");
     Shader skyboxShader("Shaders/skybox.vert", "Shaders/skybox.frag");
 
-    Model3D testModel(
-        "3D/plane.obj",          // Model path
-        "3D/brickwall.jpg",        // Texture path (optional)
-        "3D/brickwall_normal.jpg",     // Normal map path (optional)
-        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
-        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
-        glm::vec3(1.0f, 1.0f, 1.0f)   // Initial scale
-    );
-
     Model3D kartModel(
         "3D/Kart/GoKart.obj",          // Model path
         "3D/Kart/GoKart.jpg",        // Texture path (optional)
         "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
+
+    Model3D ghostModel1(
+        "3D/Kart2/ghostKart1.obj",          // Model path
+        "3D/Kart2/ghostKart1.png",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
+
+    Model3D ghostModel2(
+        "3D/Kart3/ghostKart2.obj",          // Model path
+        "3D/Kart3/ghostKart2.png",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
+
+    Model3D roadModel1(
+        "3D/plane.obj",          // Model path
+        "3D/road-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
+
+    Model3D roadModel2(
+        "3D/plane.obj",          // Model path
+        "3D/road-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
+
+    Model3D roadModel3(
+        "3D/plane.obj",          // Model path
+        "3D/road-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
+
+    Model3D roadModel4(
+        "3D/plane.obj",          // Model path
+        "3D/road-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
+
+    Model3D roadModel5(
+        "3D/plane.obj",          // Model path
+        "3D/roadFinish-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
+
+    Model3D landmark1(
+        "3D/Landmark/landmark1.obj",          // Model path
+        "3D/Landmark/landmark1.jpeg",        // Texture path (optional)
+        "3D/Landmark/landmark1_norm.jpeg",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
+
+    Model3D landmark2(
+        "3D/Landmark/landmark2.obj",          // Model path
+        "3D/Landmark/landmark2.png",        // Texture path (optional)
+        "3D/Landmark/landmark2_norm.png",     // Normal map path (optional)
         glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
         glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
         glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
@@ -286,6 +495,7 @@ int main(void)
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+
     currentSkybox = dayFacesSkybox;
     LoadSkyboxTextures(dayFacesSkybox);
     lightColor = warmLightColor;  // Set to warm light
@@ -293,68 +503,76 @@ int main(void)
     isWarmLight = true;
 
     glm::mat4 projectionMatrix = glm::perspective(
-        glm::radians(60.0f), //FOV
+        glm::radians(80.0f), //FOV
         windowHeight / windowWidth, //Aspect Ratio
         0.1f, //Z near should never be <= 0
-        100.f //Z far
+        500.f //Z far
     );
 
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
+        double currentTime = glfwGetTime();
+        double elapsedTime = currentTime ;
+
+        static int lastPrintedSecond = -1;
+
+        if (elapsedTime < 5.0) {
+            int remainingTime = static_cast<int>(5.0 - elapsedTime) + 1; // Calculate remaining time and round up
+            if (remainingTime != lastPrintedSecond) {
+                std::cout << "Countdown: " << remainingTime << " seconds remaining" << std::endl;
+                lastPrintedSecond = remainingTime;
+            }
+        }
+        else {
+            if (countdownActive) {
+                std::cout << "Lights out and away we go!" << std::endl;
+                countdownActive = false; // Stop the countdown after 5 seconds
+            }
+        }
+
         ProcessInput();
 
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        //Position Matrix
-        glm::vec3 cameraPos = glm::vec3(0 + x_cam, 0 + y_cam, 0 + z_cam); //eye
-        glm::mat4 cameraPosMatrix = glm::translate(glm::mat4(1.0f), cameraPos * -1.0f);
+        // Orientation
+        glm::vec3 worldUp = glm::normalize(glm::vec3(0.0f, 1.0f, 0.0f)); // Pointing upwards
 
-        //Orientation
-        glm::vec3 worldUp = glm::normalize(glm::vec3(0.0f, 1.0f , 0.0f )); //Pointing upwards
+        glm::vec3 thirdPerson_front;
+        thirdPerson_front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        thirdPerson_front.y = sin(glm::radians(pitch));
+        thirdPerson_front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+        thirdPerson_front = glm::normalize(thirdPerson_front);
 
-        glm::vec3 front;
-        front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-        front.y = sin(glm::radians(pitch));
-        front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-        front = glm::normalize(front);
+        glm::vec3 firstPerson_front;
+        firstPerson_front.x = cos(glm::radians(frontCamYaw)) * cos(glm::radians(frontCamPitch));
+        firstPerson_front.y = sin(glm::radians(frontCamPitch));
+        firstPerson_front.z = sin(glm::radians(frontCamYaw)) * cos(glm::radians(frontCamPitch));
+        firstPerson_front = glm::normalize(firstPerson_front);
 
- 
-        glm::vec3 cameraCenter = cameraPos + front;
+        glm::vec3 cameraPos;
 
-        //Forward
-        glm::vec3 F = cameraCenter - cameraPos;
-        F = glm::normalize(F);
+        glm::mat4 viewMatrix;
+        if (useFrontCamera) {
+            // Position Matrix for the front camera
+            cameraPos = glm::vec3(3 + x_mod, 2.8, z_mod); // Adjust the position to be in front of the car
+            glm::vec3 cameraCenter = cameraPos + firstPerson_front;
 
-        //R = F X WorldUp
-        glm::vec3 R = glm::cross(F, worldUp);
-        //U = R X F
-        glm::vec3 U = glm::cross(R, F);
+            viewMatrix = glm::lookAt(cameraPos, cameraCenter, worldUp);
+        }
+        else {
+            // Position Matrix for the main camera
+            cameraPos = glm::vec3(-15 + x_mod, 10 + y_mod, 0 + z_mod); // eye
+            glm::vec3 cameraCenter = cameraPos + thirdPerson_front;
 
-        glm::mat4 cameraOrientation = glm::mat4(1.);
-        //Matrix [Column][Row]
-        //Row 1 = R
-        cameraOrientation[0][0] = R.x;
-        cameraOrientation[1][0] = R.y;
-        cameraOrientation[2][0] = R.z;
+            viewMatrix = glm::lookAt(cameraPos, cameraCenter, worldUp);
+        }
 
-        //Row 2 = U
-        cameraOrientation[0][1] = U.x;
-        cameraOrientation[1][1] = U.y;
-        cameraOrientation[2][1] = U.z;
 
-        //Row 3 = -F
-        cameraOrientation[0][2] = -F.x;
-        cameraOrientation[1][2] = -F.y;
-        cameraOrientation[2][2] = -F.z;
-        //end of Orientation Matrix
 
-        glm::mat4 viewMatrix = glm::lookAt(cameraPos, cameraCenter, worldUp);
 
         glDepthMask(GL_FALSE);
         glDepthFunc(GL_LEQUAL);
@@ -427,41 +645,248 @@ int main(void)
         glUniform1f(specPhongAddress, specPhong);
 
 
-        // TEST MODEL
-        glActiveTexture(GL_TEXTURE0);
-        GLuint tex0Address = glGetUniformLocation(mainShader.ID, "tex0");
-        glBindTexture(GL_TEXTURE_2D, testModel.texture);
-        glUniform1i(tex0Address, 0);
+        if (x_mod >= 380.f && playerFinished == false) {
+            playerFinished = true;
+            std::cout << "Player has crossed the finish line!" << std::endl;
+			if (playerTimeRecorded == false) {
 
-        glActiveTexture(GL_TEXTURE1);
-        GLuint tex1Address = glGetUniformLocation(mainShader.ID, "norm_tex");
-        glBindTexture(GL_TEXTURE_2D, testModel.normalMap);
-        glUniform1i(tex1Address, 1);
+				playerLapTime = elapsedTime - 5;
+				playerTimeRecorded = true;
+			}
+        }
 
-        testModel.updateTransform(
-            thetaX, thetaY, thetaZ,  // Rotation
-            x_mod, y_mod, z_mod,     // Position
-            scaleVal                 // Scale
-        );
+        if (ghost1x_mod < 380.f && countdownActive == false && ghost1Finished == false) {
+			if (!ghostPaused) {
+				ghost1x_mod += ghost1Speed;
+			}
+        }
+        else if (ghost1x_mod >= 380.f && ghost1Finished == false) {
+            ghost1Finished = true;
+            std::cout << "Ghost 1 has crossed the finish line!" << std::endl;
+            if (ghost1TimeRecorded == false) {
 
-        testModel.draw(mainShader.ID);  // Pass the shader program ID
+                ghost1LapTime = elapsedTime - 5;
+                ghost1TimeRecorded = true;
+            }
+        }
+
+        if (ghost2x_mod < 380.f && countdownActive == false && ghost2Finished == false) {
+			if (!ghostPaused) {
+				ghost2x_mod += ghost2Speed;
+			}
+        }
+        else if (ghost2x_mod >= 380.f && ghost2Finished == false) {
+            ghost2Finished = true;
+            std::cout << "Ghost 2 has crossed the finish line!" << std::endl;
+            if (ghost2TimeRecorded == false) {
+
+                ghost2LapTime = elapsedTime - 5;
+                ghost2TimeRecorded = true;
+            }
+        }
+
+        if (playerFinished && ghost1Finished && ghost2Finished) {
+            if (raceFinished != true) {
+                std::cout << "[][][][][][] GDGRAP1 GRAND PRIX HAS CONCLUDED [][][][][][]" << std::endl;
+                std::cout << "Player Lap Time : " << playerLapTime <<std::endl;
+                std::cout << "Ghost 1 Lap Time: " << ghost1LapTime << std::endl;
+                std::cout << "Ghost 2 Lap Time: " << ghost2LapTime << std::endl;
+                std::cout << "[][][][][][][][][][][][][][][][][][][][][][][][][][][][][]" << std::endl;
+				raceFinished = true;
+            }
+        }
+
+
+
 
         // KART MODEL
         glActiveTexture(GL_TEXTURE0);
+        GLuint tex0Address = glGetUniformLocation(mainShader.ID, "tex0");
         glBindTexture(GL_TEXTURE_2D, kartModel.texture);
         glUniform1i(tex0Address, 0);
 
         glActiveTexture(GL_TEXTURE1);
+        GLuint tex1Address = glGetUniformLocation(mainShader.ID, "norm_tex");
         glBindTexture(GL_TEXTURE_2D, kartModel.normalMap);
         glUniform1i(tex1Address, 1);
 
         kartModel.updateTransform(
-            thetaX, thetaY, thetaZ,  // Rotation
-            x_mod, y_mod, z_mod,     // Position
-            scaleVal                 // Scale
+            0, 180 + thetaY, 0,  // Rotation
+            x_mod, 1.7, z_mod,     // Position
+            1                 // Scale
         );
 
-        kartModel.draw(mainShader.ID);  // Pass the shader program ID
+        kartModel.draw(mainShader.ID);
+
+
+
+        ///////////////////////////////////
+
+        ////////// GHOST MODEL 1 //////////
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ghostModel1.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, ghostModel1.normalMap);
+        glUniform1i(tex1Address, 1);
+
+        ghostModel1.updateTransform(
+            0, 90, 0,  // Rotation
+            ghost1x_mod, 0.7, ghost1z_mod,     // Position
+            0.5                 // Scale
+        );
+
+        // Set the alpha value for transparency
+        float alpha = 0.5f; // Adjust this value to control transparency (0.0f to 1.0f)
+        GLuint alphaLoc = glGetUniformLocation(mainShader.ID, "alpha");
+        glUniform1f(alphaLoc, alpha);
+
+        ghostModel1.draw(mainShader.ID);  // Pass the shader program ID
+
+        glDisable(GL_BLEND); // Disable blending after drawing
+
+        ///////////////////////////////////
+
+        ////////// GHOST MODEL 2 //////////
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ghostModel2.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, ghostModel2.normalMap);
+        glUniform1i(tex1Address, 1);
+
+        ghostModel2.updateTransform(
+            0, 90, 0,  // Rotation
+            ghost2x_mod, 0, ghost2z_mod,     // Position
+            4                 // Scale
+        );
+
+        glUniform1f(alphaLoc, alpha);
+
+        ghostModel2.draw(mainShader.ID);  // Pass the shader program ID
+
+        glDisable(GL_BLEND); // Disable blending after drawing
+
+
+
+        // ROAD MODEL 1
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel1.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel1.normalMap);
+        glUniform1i(tex1Address, 1);
+
+        roadModel1.updateTransform(
+            90, 0, 0,  // Rotation
+            0, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 2
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel2.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel2.normalMap);
+        glUniform1i(tex1Address, 1);
+
+        roadModel2.updateTransform(
+            90, 0, 0,  // Rotation
+            100, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 3 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel3.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel3.normalMap);
+        glUniform1i(tex1Address, 1);
+
+        roadModel3.updateTransform(
+            90, 0, 0,  // Rotation
+            200, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 4 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel4.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel4.normalMap);
+        glUniform1i(tex1Address, 1);
+
+        roadModel4.updateTransform(
+            90, 0, 0,  // Rotation
+            300, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 5
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel5.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel5.normalMap);
+        glUniform1i(tex1Address, 1);
+
+        roadModel5.updateTransform(
+            90, 0, 0,  // Rotation
+            400, 0, 0,     // Position
+            roadScaleVal   
+        );
+
+        // LANDMARK MODEL 1
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, landmark1.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, landmark1.normalMap);
+        glUniform1i(tex1Address, 1);
+
+        landmark1.updateTransform(
+            0, 0, 0,  // Rotation
+            410, 25, -20,     // Position
+			10                 // Scale
+        );
+
+        // LANDMARK MODEL 2
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, landmark2.texture);
+        glUniform1i(tex0Address, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, landmark2.normalMap);
+        glUniform1i(tex1Address, 1);
+
+        landmark2.updateTransform(
+            0, 270, 0,  // Rotation
+            410, 0, 20,     // Position
+            2.5                 // Scale
+        );
+
+        roadModel1.draw(mainShader.ID);  // Pass the shader program ID
+        roadModel2.draw(mainShader.ID);  // Pass the shader program ID
+        roadModel3.draw(mainShader.ID);  // Pass the shader program ID
+        roadModel4.draw(mainShader.ID);  // Pass the shader program ID
+        roadModel5.draw(mainShader.ID);  // Pass the shader program ID
+		landmark1.draw(mainShader.ID);  // Pass the shader program ID
+		landmark2.draw(mainShader.ID);  // Pass the shader program ID
 
         glfwSwapBuffers(window);
 

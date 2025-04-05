@@ -60,6 +60,12 @@ public:
             return;
         }
 
+        // Determine the format based on the file extension
+        GLenum format = GL_RGB;
+        if (path.substr(path.find_last_of(".") + 1) == "png") {
+            format = GL_RGBA;
+        }
+
         // Create and bind the texture
         glGenTextures(1, &texture);
         glActiveTexture(GL_TEXTURE0);
@@ -69,11 +75,11 @@ public:
         glTexImage2D(
             GL_TEXTURE_2D,
             0,
-            GL_RGB,
+            format,
             img_width,
             img_height,
             0,
-            GL_RGB,
+            format,
             GL_UNSIGNED_BYTE,
             tex_bytes
         );
@@ -81,6 +87,7 @@ public:
         glGenerateMipmap(GL_TEXTURE_2D);
         stbi_image_free(tex_bytes); // Free image data
     }
+
 
     // Function for loading a normal map texture
     void loadNormal(const std::string& path) {
