@@ -10,14 +10,17 @@
 #include <cmath>
 #include <unordered_map>
 
+#define MAX_POINT_LIGHTS 10
+
 glm::vec3 warmLightColor = glm::vec3(1.0f, 0.7f, 0.5f);  // Orange-ish warm light
 glm::vec3 coldLightColor = glm::vec3(0.7f, 0.8f, 1.0f);  // Blue-ish cold light
 bool isWarmLight = true;  // Start with warm light
 
 //Light position
-glm::vec3 lightPos = glm::vec3(-10, 3, 0);
+glm::vec3 lightPos = glm::vec3(0, 0, 0);
 glm::vec3 lightColor = warmLightColor;  // Start with warm light
 float brightness = 1;
+float pointLightBrightness = 0;
 glm::vec3 ambientColor = warmLightColor * 0.5f;  // Match ambient
 float ambientStr = 0.5f;
 float specStr = 3.0f;
@@ -96,5 +99,36 @@ public:
         // Pass the point light's brightness to the shader
         GLuint lightBrightnessAddress = glGetUniformLocation(shaderProgram, "pointLightBrightness");
         glUniform1f(lightBrightnessAddress, intensity);
+    }
+};
+
+
+class LightManager {
+public:
+    std::vector<PointLight> pointLights;
+
+    void AddPointLight(const PointLight& light) {
+        pointLights.push_back(light);
+    }
+
+    void UploadLights(GLuint shaderProgram) {
+        // Upload point light count
+        glUniform1i(glGetUniformLocation(shaderProgram, "numPointLights"), pointLights.size());
+
+        // Prepare arrays
+        glm::vec3 positions[MAX_POINT_LIGHTS];
+        glm::vec3 colors[MAX_POINT_LIGHTS];
+        float intensities[MAX_POINT_LIGHTS];
+
+        for (size_t i = 0; i < pointLights.size() && i < MAX_POINT_LIGHTS; ++i) {
+            positions[i] = pointLights[i].GetPosition();
+            colors[i] = pointLights[i].GetColor();
+            intensities[i] = pointLights[i].GetIntensity();
+        }
+
+        // Upload arrays to the shader
+        glUniform3fv(glGetUniformLocation(shaderProgram, "pointLightPos"), MAX_POINT_LIGHTS, glm::value_ptr(positions[0]));
+        glUniform3fv(glGetUniformLocation(shaderProgram, "pointLightColor"), MAX_POINT_LIGHTS, glm::value_ptr(colors[0]));
+        glUniform1fv(glGetUniformLocation(shaderProgram, "pointLightBrightness"), MAX_POINT_LIGHTS, intensities);
     }
 };

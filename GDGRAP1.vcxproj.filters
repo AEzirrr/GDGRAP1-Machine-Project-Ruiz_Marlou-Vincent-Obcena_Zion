@@ -49,5 +49,7 @@
   <ItemGroup>
     <None Include="Shaders\skybox.vert" />
     <None Include="Shaders\skybox.frag" />
+    <None Include="Shaders\nonormal.frag" />
+    <None Include="Shaders\nonormal.vert" />
   </ItemGroup>
 </Project>

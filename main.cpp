@@ -289,6 +289,7 @@ void ProcessInput() {
         lightColor = warmLightColor;  // Set to warm light
         ambientColor = warmLightColor * 0.5f;  // Match ambient to light color
         isWarmLight = true;
+        pointLightBrightness = 0;
     };
     if (keyStates[GLFW_KEY_E]) {
         currentSkybox = nightFacesSkybox;
@@ -296,6 +297,7 @@ void ProcessInput() {
         lightColor = coldLightColor;  // Set to cold light
         ambientColor = coldLightColor * 0.5f;  // Match ambient to light color
         isWarmLight = false;
+        pointLightBrightness = 2;
     };
 
     // Rotation
@@ -340,8 +342,63 @@ int main(void)
     glfwSetCursorPosCallback(window, Mouse_Callback);
     glfwSetKeyCallback(window, Key_Callback);
 
+    // Shaders
     Shader mainShader("Shaders/sample.vert", "Shaders/sample.frag");
     Shader skyboxShader("Shaders/skybox.vert", "Shaders/skybox.frag");
+    Shader noNormalShader("Shaders/nonormal.vert", "Shaders/nonormal.frag");
+
+    LightManager lightManager;
+
+    // Lights
+    PointLight pLight1(
+        glm::vec3(0.0f, 5.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        1.f
+    );
+
+    PointLight pLight2(
+        glm::vec3(0.0f, 5.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        1.f
+    );
+
+    PointLight pLight3(
+        glm::vec3(0.0f, 5.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        1.f
+    );
+
+    PointLight pLight4(
+        glm::vec3(0.0f, 5.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        1.f
+    );
+
+    PointLight pLight5(
+        glm::vec3(0.0f, 5.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        1.f
+    );
+
+    PointLight pLight6(
+        glm::vec3(0.0f, 5.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        1.f
+    );
+
+    lightManager.AddPointLight(pLight1);
+    lightManager.AddPointLight(pLight2);
+    lightManager.AddPointLight(pLight3);
+    lightManager.AddPointLight(pLight4);
+    lightManager.AddPointLight(pLight5);
+    lightManager.AddPointLight(pLight6);
+
+    DirectionalLight directionalLight(
+        glm::vec3(0.0f, 30.0f, -50.0f),
+        glm::vec3(5.0f, -10.0f, -50.0f),
+        lightColor,
+        1.f
+    );
 
     Model3D kartModel(
         "3D/Kart/GoKart.obj",          // Model path
@@ -502,6 +559,9 @@ int main(void)
     ambientColor = warmLightColor * 0.5f;  // Match ambient to light color
     isWarmLight = true;
 
+    glm::vec3 lightPos1 = glm::vec3(x_mod, 2.f, z_mod);
+
+
     glm::mat4 projectionMatrix = glm::perspective(
         glm::radians(80.0f), //FOV
         windowHeight / windowWidth, //Aspect Ratio
@@ -510,6 +570,7 @@ int main(void)
     );
 
     glEnable(GL_DEPTH_TEST);
+
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
@@ -571,9 +632,6 @@ int main(void)
             viewMatrix = glm::lookAt(cameraPos, cameraCenter, worldUp);
         }
 
-
-
-
         glDepthMask(GL_FALSE);
         glDepthFunc(GL_LEQUAL);
 
@@ -606,8 +664,199 @@ int main(void)
         transformation_matrix = glm::rotate(transformation_matrix, glm::radians(thetaY), glm::vec3(0, 1, 0)); 
         transformation_matrix = glm::rotate(transformation_matrix, glm::radians(thetaZ), glm::vec3(0, 0, 1)); 
 
+        ////////////////////////////////////////// NO NORMAL SHADER /////////////////////////////////////////////
+        noNormalShader.use();
+        directionalLight.SetColor(lightColor);
+        directionalLight.UpdateLightProperties(noNormalShader.ID);
+        unsigned int noNormalviewLoc = glGetUniformLocation(noNormalShader.ID, "view");
+        glUniformMatrix4fv(noNormalviewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
 
+        unsigned int noNormalprojLoc = glGetUniformLocation(noNormalShader.ID, "projection");
+        glUniformMatrix4fv(noNormalprojLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+        GLuint noNormalambientStrAddress = glGetUniformLocation(noNormalShader.ID, "ambientStr");
+        glUniform1f(noNormalambientStrAddress, ambientStr);
+
+        GLuint noNormalambientColorAddress = glGetUniformLocation(noNormalShader.ID, "ambientColor");
+        glUniform3fv(noNormalambientColorAddress, 1, glm::value_ptr(ambientColor));
+
+        GLuint noNormalcameraPosAddress = glGetUniformLocation(noNormalShader.ID, "cameraPos");
+        glUniform3fv(noNormalcameraPosAddress, 1, glm::value_ptr(cameraPos));
+
+        GLuint noNormalspecStrAddress = glGetUniformLocation(noNormalShader.ID, "specStr");
+        glUniform1f(noNormalspecStrAddress, specStr);
+
+        GLuint noNormalspecPhongAddress = glGetUniformLocation(noNormalShader.ID, "specPhong");
+        glUniform1f(noNormalspecPhongAddress, specPhong);
+
+        // KART MODEL
+        glActiveTexture(GL_TEXTURE0);
+        GLuint tex0Address1 = glGetUniformLocation(mainShader.ID, "tex0");
+        glBindTexture(GL_TEXTURE_2D, kartModel.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        GLuint tex1Address1 = glGetUniformLocation(mainShader.ID, "norm_tex");
+        glBindTexture(GL_TEXTURE_2D, kartModel.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        kartModel.updateTransform(
+            0, 180 + thetaY, 0,  // Rotation
+            x_mod, 1.7, z_mod,     // Position
+            1                 // Scale
+        );
+
+        kartModel.draw(noNormalShader.ID);
+
+        ///////////////////////////////////
+
+        ////////// GHOST MODEL 1 //////////
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ghostModel1.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, ghostModel1.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        ghostModel1.updateTransform(
+            0, 90, 0,  // Rotation
+            ghost1x_mod, 0.7, ghost1z_mod,     // Position
+            0.5                 // Scale
+        );
+
+        // Set the alpha value for transparency
+        float alpha = 0.5f; // Adjust this value to control transparency (0.0f to 1.0f)
+        GLuint alphaLoc = glGetUniformLocation(mainShader.ID, "alpha");
+        glUniform1f(alphaLoc, alpha);
+
+        ghostModel1.draw(noNormalShader.ID);  // Pass the shader program ID
+
+        glDisable(GL_BLEND); // Disable blending after drawing
+
+        ///////////////////////////////////
+
+        ////////// GHOST MODEL 2 //////////
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ghostModel2.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, ghostModel2.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        ghostModel2.updateTransform(
+            0, 90, 0,  // Rotation
+            ghost2x_mod, 0, ghost2z_mod,     // Position
+            4                 // Scale
+        );
+
+        glUniform1f(alphaLoc, alpha);
+
+        ghostModel2.draw(noNormalShader.ID);  // Pass the shader program ID
+
+        glDisable(GL_BLEND); // Disable blending after drawing
+
+        // ROAD MODEL 1
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel1.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel1.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel1.updateTransform(
+            90, 0, 0,  // Rotation
+            0, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 2
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel2.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel2.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel2.updateTransform(
+            90, 0, 0,  // Rotation
+            100, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 3 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel3.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel3.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel3.updateTransform(
+            90, 0, 0,  // Rotation
+            200, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 4 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel4.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel4.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel4.updateTransform(
+            90, 0, 0,  // Rotation
+            300, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 5
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel5.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel5.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel5.updateTransform(
+            90, 0, 0,  // Rotation
+            400, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        lightManager.pointLights[0].SetPosition(glm::vec3(x_mod + 10, 1.7f, z_mod - 2));
+        lightManager.pointLights[1].SetPosition(glm::vec3(x_mod + 10, 1.7f, z_mod + 2));
+        lightManager.pointLights[2].SetPosition(glm::vec3(ghost1x_mod + 12, 1.7f, ghost1z_mod - 1));
+        lightManager.pointLights[3].SetPosition(glm::vec3(ghost1x_mod + 12, 1.7f, ghost1z_mod + 1));
+        lightManager.pointLights[4].SetPosition(glm::vec3(ghost2x_mod + 10, 1.7f, ghost2z_mod - 2));
+        lightManager.pointLights[5].SetPosition(glm::vec3(ghost2x_mod + 10, 1.7f, ghost2z_mod + 2));
+        for (int i = 0; i < 6; i++)
+        {
+            lightManager.pointLights[i].SetIntensity(pointLightBrightness);
+        }
+        lightManager.UploadLights(noNormalShader.ID);
+        roadModel1.draw(noNormalShader.ID);  // Pass the shader program ID
+        roadModel2.draw(noNormalShader.ID);  // Pass the shader program ID
+        roadModel3.draw(noNormalShader.ID);  // Pass the shader program ID
+        roadModel4.draw(noNormalShader.ID);  // Pass the shader program ID
+        roadModel5.draw(noNormalShader.ID);  // Pass the shader program ID
+
+        ///////////////////////////////////// MAIN SHADER ////////////////////////////////////////////////
         mainShader.use();
+        directionalLight.UpdateLightProperties(mainShader.ID);
+        directionalLight.SetColor(lightColor);
         unsigned int viewLoc = glGetUniformLocation(mainShader.ID, "view");
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
 
@@ -618,14 +867,12 @@ int main(void)
         glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transformation_matrix));
 
 
-        GLuint lightAddress = glGetUniformLocation(mainShader.ID, "lightPos");
-        glUniform3fv(lightAddress, 1, glm::value_ptr(lightPos));
-
-        GLuint lightColorAddress = glGetUniformLocation(mainShader.ID, "lightColor");
-        glUniform3fv(lightColorAddress, 1, glm::value_ptr(lightColor));
-
-        GLuint brightnessAddress = glGetUniformLocation(mainShader.ID, "brightness");
-        glUniform1f(brightnessAddress, brightness);
+        //GLuint lightAddress = glGetUniformLocation(mainShader.ID, "lightPos");
+        //glUniform3fv(lightAddress, 1, glm::value_ptr(lightPos));
+        //GLuint lightColorAddress = glGetUniformLocation(mainShader.ID, "lightColor");
+        //glUniform3fv(lightColorAddress, 1, glm::value_ptr(lightColor));
+        //GLuint brightnessAddress = glGetUniformLocation(mainShader.ID, "brightness");
+        //glUniform1f(brightnessAddress, brightness);
 
 
         GLuint ambientStrAddress = glGetUniformLocation(mainShader.ID, "ambientStr");
@@ -633,7 +880,6 @@ int main(void)
 
         GLuint ambientColorAddress = glGetUniformLocation(mainShader.ID, "ambientColor");
         glUniform3fv(ambientColorAddress, 1, glm::value_ptr(ambientColor));
-
 
         GLuint cameraPosAddress = glGetUniformLocation(mainShader.ID, "cameraPos");
         glUniform3fv(cameraPosAddress, 1, glm::value_ptr(cameraPos));
@@ -644,21 +890,56 @@ int main(void)
         GLuint specPhongAddress = glGetUniformLocation(mainShader.ID, "specPhong");
         glUniform1f(specPhongAddress, specPhong);
 
+        // LANDMARK MODEL 1
+        glActiveTexture(GL_TEXTURE0);
+        GLuint tex0Address2 = glGetUniformLocation(mainShader.ID, "tex0");
+        glBindTexture(GL_TEXTURE_2D, landmark1.texture);
+        glUniform1i(tex0Address2, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        GLuint tex1Address2 = glGetUniformLocation(mainShader.ID, "norm_tex");
+        glBindTexture(GL_TEXTURE_2D, landmark1.normalMap);
+        glUniform1i(tex1Address2, 1);
+
+        landmark1.updateTransform(
+            0, 0, 0,  // Rotation
+            410, 25, -20,     // Position
+			10                 // Scale
+        );
+
+        // LANDMARK MODEL 2
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, landmark2.texture);
+        glUniform1i(tex0Address2, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, landmark2.normalMap);
+        glUniform1i(tex1Address2, 1);
+
+        landmark2.updateTransform(
+            0, 270, 0,  // Rotation
+            410, 0, 20,     // Position
+            2.5                 // Scale
+        );
+
+		landmark1.draw(mainShader.ID);  // Pass the shader program ID
+		landmark2.draw(mainShader.ID);  // Pass the shader program ID
+
 
         if (x_mod >= 380.f && playerFinished == false) {
             playerFinished = true;
             std::cout << "Player has crossed the finish line!" << std::endl;
-			if (playerTimeRecorded == false) {
+            if (playerTimeRecorded == false) {
 
-				playerLapTime = elapsedTime - 5;
-				playerTimeRecorded = true;
-			}
+                playerLapTime = elapsedTime - 5;
+                playerTimeRecorded = true;
+            }
         }
 
         if (ghost1x_mod < 380.f && countdownActive == false && ghost1Finished == false) {
-			if (!ghostPaused) {
-				ghost1x_mod += ghost1Speed;
-			}
+            if (!ghostPaused) {
+                ghost1x_mod += ghost1Speed;
+            }
         }
         else if (ghost1x_mod >= 380.f && ghost1Finished == false) {
             ghost1Finished = true;
@@ -671,9 +952,9 @@ int main(void)
         }
 
         if (ghost2x_mod < 380.f && countdownActive == false && ghost2Finished == false) {
-			if (!ghostPaused) {
-				ghost2x_mod += ghost2Speed;
-			}
+            if (!ghostPaused) {
+                ghost2x_mod += ghost2Speed;
+            }
         }
         else if (ghost2x_mod >= 380.f && ghost2Finished == false) {
             ghost2Finished = true;
@@ -688,205 +969,15 @@ int main(void)
         if (playerFinished && ghost1Finished && ghost2Finished) {
             if (raceFinished != true) {
                 std::cout << "[][][][][][] GDGRAP1 GRAND PRIX HAS CONCLUDED [][][][][][]" << std::endl;
-                std::cout << "Player Lap Time : " << playerLapTime <<std::endl;
+                std::cout << "Player Lap Time : " << playerLapTime << std::endl;
                 std::cout << "Ghost 1 Lap Time: " << ghost1LapTime << std::endl;
                 std::cout << "Ghost 2 Lap Time: " << ghost2LapTime << std::endl;
                 std::cout << "[][][][][][][][][][][][][][][][][][][][][][][][][][][][][]" << std::endl;
-				raceFinished = true;
+                raceFinished = true;
             }
         }
 
 
-
-
-        // KART MODEL
-        glActiveTexture(GL_TEXTURE0);
-        GLuint tex0Address = glGetUniformLocation(mainShader.ID, "tex0");
-        glBindTexture(GL_TEXTURE_2D, kartModel.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        GLuint tex1Address = glGetUniformLocation(mainShader.ID, "norm_tex");
-        glBindTexture(GL_TEXTURE_2D, kartModel.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        kartModel.updateTransform(
-            0, 180 + thetaY, 0,  // Rotation
-            x_mod, 1.7, z_mod,     // Position
-            1                 // Scale
-        );
-
-        kartModel.draw(mainShader.ID);
-
-
-
-        ///////////////////////////////////
-
-        ////////// GHOST MODEL 1 //////////
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, ghostModel1.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, ghostModel1.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        ghostModel1.updateTransform(
-            0, 90, 0,  // Rotation
-            ghost1x_mod, 0.7, ghost1z_mod,     // Position
-            0.5                 // Scale
-        );
-
-        // Set the alpha value for transparency
-        float alpha = 0.5f; // Adjust this value to control transparency (0.0f to 1.0f)
-        GLuint alphaLoc = glGetUniformLocation(mainShader.ID, "alpha");
-        glUniform1f(alphaLoc, alpha);
-
-        ghostModel1.draw(mainShader.ID);  // Pass the shader program ID
-
-        glDisable(GL_BLEND); // Disable blending after drawing
-
-        ///////////////////////////////////
-
-        ////////// GHOST MODEL 2 //////////
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, ghostModel2.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, ghostModel2.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        ghostModel2.updateTransform(
-            0, 90, 0,  // Rotation
-            ghost2x_mod, 0, ghost2z_mod,     // Position
-            4                 // Scale
-        );
-
-        glUniform1f(alphaLoc, alpha);
-
-        ghostModel2.draw(mainShader.ID);  // Pass the shader program ID
-
-        glDisable(GL_BLEND); // Disable blending after drawing
-
-
-
-        // ROAD MODEL 1
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, roadModel1.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, roadModel1.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        roadModel1.updateTransform(
-            90, 0, 0,  // Rotation
-            0, 0, 0,     // Position
-            roadScaleVal
-        );
-
-        // ROAD MODEL 2
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, roadModel2.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, roadModel2.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        roadModel2.updateTransform(
-            90, 0, 0,  // Rotation
-            100, 0, 0,     // Position
-            roadScaleVal
-        );
-
-        // ROAD MODEL 3 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, roadModel3.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, roadModel3.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        roadModel3.updateTransform(
-            90, 0, 0,  // Rotation
-            200, 0, 0,     // Position
-            roadScaleVal
-        );
-
-        // ROAD MODEL 4 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, roadModel4.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, roadModel4.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        roadModel4.updateTransform(
-            90, 0, 0,  // Rotation
-            300, 0, 0,     // Position
-            roadScaleVal
-        );
-
-        // ROAD MODEL 5
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, roadModel5.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, roadModel5.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        roadModel5.updateTransform(
-            90, 0, 0,  // Rotation
-            400, 0, 0,     // Position
-            roadScaleVal   
-        );
-
-        // LANDMARK MODEL 1
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, landmark1.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, landmark1.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        landmark1.updateTransform(
-            0, 0, 0,  // Rotation
-            410, 25, -20,     // Position
-			10                 // Scale
-        );
-
-        // LANDMARK MODEL 2
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, landmark2.texture);
-        glUniform1i(tex0Address, 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, landmark2.normalMap);
-        glUniform1i(tex1Address, 1);
-
-        landmark2.updateTransform(
-            0, 270, 0,  // Rotation
-            410, 0, 20,     // Position
-            2.5                 // Scale
-        );
-
-        roadModel1.draw(mainShader.ID);  // Pass the shader program ID
-        roadModel2.draw(mainShader.ID);  // Pass the shader program ID
-        roadModel3.draw(mainShader.ID);  // Pass the shader program ID
-        roadModel4.draw(mainShader.ID);  // Pass the shader program ID
-        roadModel5.draw(mainShader.ID);  // Pass the shader program ID
-		landmark1.draw(mainShader.ID);  // Pass the shader program ID
-		landmark2.draw(mainShader.ID);  // Pass the shader program ID
 
         glfwSwapBuffers(window);
 
