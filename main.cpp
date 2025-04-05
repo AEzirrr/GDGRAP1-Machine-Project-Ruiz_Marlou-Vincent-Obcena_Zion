@@ -483,8 +483,8 @@ int main(void)
 
     Model3D landmark2(
         "3D/Landmark/landmark2.obj",          // Model path
-        "3D/Landmark/landmark2.png",        // Texture path (optional)
-        "3D/Landmark/landmark2_norm.png",     // Normal map path (optional)
+        "3D/Landmark/landmark2.jpg",        // Texture path (optional)
+        "3D/Landmark/landmark2_norm.jpg",     // Normal map path (optional)
         glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
         glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
         glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
@@ -890,22 +890,28 @@ int main(void)
         GLuint specPhongAddress = glGetUniformLocation(mainShader.ID, "specPhong");
         glUniform1f(specPhongAddress, specPhong);
 
+        GLuint tex0Address2 = glGetUniformLocation(mainShader.ID, "tex0");
+        GLuint tex1Address2 = glGetUniformLocation(mainShader.ID, "norm_tex");
+
         // LANDMARK MODEL 1
         glActiveTexture(GL_TEXTURE0);
-        GLuint tex0Address2 = glGetUniformLocation(mainShader.ID, "tex0");
         glBindTexture(GL_TEXTURE_2D, landmark1.texture);
         glUniform1i(tex0Address2, 0);
 
         glActiveTexture(GL_TEXTURE1);
-        GLuint tex1Address2 = glGetUniformLocation(mainShader.ID, "norm_tex");
         glBindTexture(GL_TEXTURE_2D, landmark1.normalMap);
         glUniform1i(tex1Address2, 1);
 
         landmark1.updateTransform(
             0, 0, 0,  // Rotation
             410, 25, -20,     // Position
-			10                 // Scale
+            10                 // Scale
         );
+
+        landmark1.draw(mainShader.ID);  // Pass the shader program ID
+
+        // Ensure the shader program is used before drawing the second landmark
+        mainShader.use();
 
         // LANDMARK MODEL 2
         glActiveTexture(GL_TEXTURE0);
@@ -922,8 +928,8 @@ int main(void)
             2.5                 // Scale
         );
 
-		landmark1.draw(mainShader.ID);  // Pass the shader program ID
-		landmark2.draw(mainShader.ID);  // Pass the shader program ID
+        landmark2.draw(mainShader.ID);  // Pass the shader program ID
+
 
 
         if (x_mod >= 380.f && playerFinished == false) {
