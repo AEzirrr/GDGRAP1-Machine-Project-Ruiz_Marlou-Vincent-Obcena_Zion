@@ -84,23 +84,6 @@ public:
     }
 };
 
-// Orthographic camera class
-class OrthographicCamera : public MyCamera {
-private:
-    float orthoSize;
-
-public:
-    // Constructor
-    OrthographicCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist, float size)
-        : MyCamera(pos, frontDir, upDir, y, p, dist), orthoSize(size) {
-    }
-
-    // Function to get the projection matrix
-    glm::mat4 GetProjectionMatrix(float aspect) const override {
-        return glm::ortho(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, -50.0f, 50.0f);
-    }
-};
-
 bool usePerspective = true;
 PerspectiveCamera perspectiveCam(
     glm::vec3(0.0f, 0.0f, 10.0f), // Position
@@ -110,19 +93,4 @@ PerspectiveCamera perspectiveCam(
     0.0f, // Pitch
     15.0f, // Distance
     70.0f // FOV
-);
-
-glm::vec3 cameraPosition(orthoCamX, orthoCamY, orthoCamZ);
-glm::vec3 targetPosition(0.0f, 0.0f, 0.0f);
-glm::vec3 frontDir = glm::normalize(targetPosition - cameraPosition);
-glm::vec3 upDir(0.0f, 1.0f, 0.0f);
-
-OrthographicCamera orthoCam(
-    glm::vec3(orthoCamX, orthoCamY, orthoCamZ), // Position
-    frontDir, // Front direction
-    upDir, // Up direction
-    0.0f, // Yaw (not used in this context)
-    0.0f, // Pitch (not used in this context)
-    15.0f, // Distance
-    10.0f // Ortho size
 );
