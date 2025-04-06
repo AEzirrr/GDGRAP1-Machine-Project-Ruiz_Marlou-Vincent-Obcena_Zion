@@ -1,166 +1,181 @@
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-#include <string>
-#include <iostream>
-#include <cmath>
-#include <unordered_map>
-
-#define TINYOBJLOADER_IMPLEMENTATION
-#include "tiny_obj_loader.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "model.h"
+#include "camera.h"
+#include "light.h"
+#include "shader.h"
 
 #define pi 3.141592653589793238462643383279502884197
 
-float moveSpeed = 0.001f;
-float camSpeed = 0.001f;
+float moveSpeed = 0.055f;
+float turnSpeed = 0.05f;
+float camSpeed = 0.01f;
+
+float ghost1Speed = 0.07f;
+float ghost2Speed = 0.04f;
 
 std::unordered_map<int, bool> keyStates;
 
-float x_mod = 0;
+///////// PLAYER VARIABLES /////////
+
+float x_mod = -20;
 float y_mod = 0;
-float z_mod = -20;
-
-float x_cam = 0;
-float y_cam = 0;
-float z_cam = 0;
-
-float yaw = 270;
-float pitch = 0;
-
-float scaleVal = 1.5;
+float z_mod = 0;
 
 float thetaX = 0;
 float thetaY = 0;
 float thetaZ = 0;
 
+float x_cam = 0;
+float y_cam = 0;
+float z_cam = 0;
+
+float yaw = 0;
+float pitch = -15;
+
+// 1st person camera
+float frontCamX = 0;
+float frontCamY = 0;
+float frontCamZ = 0;
+float frontCamYaw = 0;
+float frontCamPitch = 0;
+
+////////////////////////////////////
+
+///////// GHOST VARIABLES /////////
+
+float ghost1x_mod = -20;
+float ghost1y_mod = 0;
+float ghost1z_mod = -20;
+
+float ghost2x_mod = -20;
+float ghost2y_mod = 0;
+float ghost2z_mod = 20;
+
+bool ghostPaused = false;
+bool spaceKeyPressed = false;
+
+////////////////////////////////////
+
+float scaleVal = 1.5;
+float roadScaleVal = 50;
+
 float axisX = 1;
 float axisY = 0;
 
-glm::mat4 identity_matrix(1.0);
+double lastMouseX = 320.0f, lastMouseY = 320.0f; // Last mouse position
+bool isMouseActive = true; // bool to check if the mouse is active
+bool mouseControlEnabled = true; // bool to check if mouse control is enabled
 
-bool isDaySkybox = true;
+bool useFrontCamera = false;
+bool zKeyPressed = false;
 
+///////// RACE VARIABLES /////////
+
+double startTime;
+bool countdownActive = true;
+
+double raceTime;
+bool raceFinished = false;
+
+bool playerFinished = false;
+bool playerTimeRecorded = false;
+double playerLapTime;
+
+bool ghost1Finished = false;
+bool ghost1TimeRecorded = false;
+double ghost1LapTime;
+
+bool ghost2Finished = false;
+bool ghost2TimeRecorded = false;
+double ghost2LapTime;
+
+//////////////////////////////////
 
 bool isPressedD, isPressedA, isPressedW, isPressedS, 
 isPressedQ, isPressedE, isPressedZ, isPressedX,
 isPressedF, isPressedH, isPressedT, isPressedG, isPressedC, isPressedV,
 isPressedLEFT, isPressedRIGHT, isPressedUP, isPressedDOWN;
 
-
-
-
-
-
-// Camera class
-class MyCamera {
-protected:
-    glm::vec3 front; // Front dir
-    glm::vec3 up; // Up dir
-    float yaw; // Yaw angle
-    float pitch; // Pitch angle
-    float distance; // Distance from the target
-
-public:
-    glm::vec3 position;
-
-    // Constructor
-    MyCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist)
-        : position(pos), front(frontDir), up(upDir), yaw(y), pitch(p), distance(dist) {
-        UpdateCameraVectors();
-    }
-
-    virtual glm::mat4 GetProjectionMatrix(float aspect) const = 0;
-
-    // Function to get the view matrix
-    glm::mat4 GetViewMatrix(const glm::vec3& target) const {
-        return glm::lookAt(position, target, up);
-    }
-
-    // Function to process mouse movement
-    void ProcessMouseMovement(float xoffset, float yoffset, float sensitivity = 0.1f) {
-        yaw += xoffset * sensitivity;
-        pitch += yoffset * sensitivity;
-
-        if (pitch > 89.0f) pitch = 89.0f;
-        if (pitch < -89.0f) pitch = -89.0f;
-
-        UpdateCameraVectors();
-    }
-
-    // Function to update the camera position
-    void UpdateCameraPosition(const glm::vec3& target) {
-        position.x = target.x + distance * cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-        position.y = target.y + distance * sin(glm::radians(pitch));
-        position.z = target.z + distance * sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    }
-
-private:
-    // Function to update the camera vectors
-    void UpdateCameraVectors() {
-        glm::vec3 newFront;
-        newFront.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-        newFront.y = sin(glm::radians(pitch));
-        newFront.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-        front = glm::normalize(newFront);
-    }
+//Day time skybox
+std::string dayFacesSkybox[]{
+"Skybox/Day/day_rt.png",
+"Skybox/Day/day_lf.png",
+"Skybox/Day/day_up.png",
+"Skybox/Day/day_dn.png",
+"Skybox/Day/day_ft.png",
+"Skybox/Day/day_bk.png"
 };
 
-// Perspective camera class
-class PerspectiveCamera : public MyCamera {
-private:
-    float fov;
-
-public:
-    // Constructor
-    PerspectiveCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist, float fovAngle)
-        : MyCamera(pos, frontDir, upDir, y, p, dist), fov(fovAngle) {
-    }
-
-    // Function to get the projection matrix
-    glm::mat4 GetProjectionMatrix(float aspect) const override {
-        return glm::perspective(glm::radians(fov), aspect, 0.1f, 100.0f);
-    }
+//night time skybox
+std::string nightFacesSkybox[]{
+"Skybox/Night/night_rt.png",
+"Skybox/Night/night_lf.png",
+"Skybox/Night/night_up.png",
+"Skybox/Night/night_dn.png",
+"Skybox/Night/night_ft.png",
+"Skybox/Night/night_bk.png"
 };
 
-// Orthographic camera class
-class OrthographicCamera : public MyCamera {
-private:
-    float orthoSize;
+unsigned int skyboxTex;
+std::string* currentSkybox = nightFacesSkybox;
+bool isDaySkybox = true;
 
-public:
-    // Constructor
-    OrthographicCamera(glm::vec3 pos, glm::vec3 frontDir, glm::vec3 upDir, float y, float p, float dist, float size)
-        : MyCamera(pos, frontDir, upDir, y, p, dist), orthoSize(size) {
+void LoadSkyboxTextures(std::string skyboxFaces[]) {
+    glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
+
+    for (unsigned int i = 0; i < 6; i++) {
+        int w, h, skyCChannel;
+        stbi_set_flip_vertically_on_load(false);
+
+        unsigned char* data = stbi_load(
+            skyboxFaces[i].c_str(), &w, &h, &skyCChannel, 0
+        );
+
+        if (data) {
+            glTexImage2D(
+                GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, data
+            );
+        }
+        stbi_image_free(data);
     }
 
-    // Function to get the projection matrix
-    glm::mat4 GetProjectionMatrix(float aspect) const override {
-        return glm::ortho(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, -50.0f, 50.0f);
+    stbi_set_flip_vertically_on_load(true);
+}
+
+void Mouse_Callback(GLFWwindow* window, double xpos, double ypos) {
+    static bool firstMouse = true;
+    static float lastX = 320.0f, lastY = 320.0f; // Initial mouse position
+
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        if (firstMouse) {
+            lastX = xpos;
+            lastY = ypos;
+            firstMouse = false;
+        }
+
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to top
+
+        lastX = xpos;
+        lastY = ypos;
+
+        float sensitivity = 0.1f; // Adjust this value to control the sensitivity
+        xoffset *= sensitivity;
+        yoffset *= sensitivity;
+
+        yaw += xoffset;
+        pitch += yoffset;
+
+        // Constrain the pitch to prevent screen flipping
+        if (pitch > 89.0f)
+            pitch = 89.0f;
+        if (pitch < -89.0f)
+            pitch = -89.0f;
     }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    else {
+        firstMouse = true; // Reset the flag when the left mouse button is released
+    }
+}
 
 void Key_Callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
@@ -171,76 +186,120 @@ void Key_Callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
 }
 
+
 // Function to process input
 void ProcessInput() {
+    if (countdownActive) {
+        return; // Do not process input if countdown is active
+    }
 
     glm::vec3 front;
     front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
     front.y = sin(glm::radians(pitch));
     front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    front = glm::normalize(front); 
+    front = glm::normalize(front);
 
     glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f)));
 
     // Object movement
-    if (keyStates[GLFW_KEY_H]) { 
-        x_mod += moveSpeed; 
-        std::cout << "CurrX: " << x_mod << std::endl;
+
+	if (playerFinished == false) {
+        //move forward
+        if (keyStates[GLFW_KEY_W]) {
+            x_mod += moveSpeed;
+            if (!keyStates[GLFW_KEY_A] && !keyStates[GLFW_KEY_D]) { //if not turning just go straight
+                if (thetaY > 0) {
+                    thetaY -= 0.1f;
+                    frontCamYaw += 0.1f;
+                }
+                else if (thetaY < 0) {
+                    thetaY += 0.1f;
+                    frontCamYaw -= 0.1f;
+                }
+            }
+        }
+        //move backwards
+        if (keyStates[GLFW_KEY_S]) {
+            x_mod -= moveSpeed;
+            if (!keyStates[GLFW_KEY_A] && !keyStates[GLFW_KEY_D]) { //if not turning just go straight
+                if (thetaY > 0) {
+                    thetaY -= 0.1f;
+                    frontCamYaw += 0.1f;
+                }
+                else if (thetaY < 0) {
+                    thetaY += 0.1f;
+                    frontCamYaw -= 0.1f;
+                }
+            }
+        }
+        //turn left
+        if (keyStates[GLFW_KEY_A]) {
+            if (keyStates[GLFW_KEY_W] || keyStates[GLFW_KEY_S]) { //only be able to turn if moving
+                z_mod -= moveSpeed;
+            }
+
+            if (thetaY < 8.0f) {
+                thetaY += 0.1f;
+                frontCamYaw -= 0.1f;
+            }
+            std::cout << "CurrZ: " << z_mod << std::endl;
+        }
+        //turn right
+        if (keyStates[GLFW_KEY_D]) {
+            if (keyStates[GLFW_KEY_W] || keyStates[GLFW_KEY_S]) { //only be able to turn if moving
+                z_mod += moveSpeed;
+            }
+
+            if (thetaY > -8.0f) {
+                thetaY -= 0.1f;
+                frontCamYaw += 0.1f;
+            }
+            std::cout << "CurrZ: " << z_mod << std::endl;
+        }
+	}
+
+    // Ghost pausing
+    if (keyStates[GLFW_KEY_SPACE] && !spaceKeyPressed) {
+        ghostPaused = !ghostPaused; // Toggle camera
+        spaceKeyPressed = true;
     }
-    if (keyStates[GLFW_KEY_F]) {
-        x_mod -= moveSpeed; 
-        std::cout << "CurrX: " << x_mod << std::endl;
-    } 
-    if (keyStates[GLFW_KEY_T]) {
-        y_mod += moveSpeed; 
-        std::cout << "CurrY: " << y_mod << std::endl;
-    } 
-    if (keyStates[GLFW_KEY_G]) {
-        y_mod -= moveSpeed; 
-        std::cout << "CurrY: " << y_mod << std::endl;
-    } 
-    if (keyStates[GLFW_KEY_Z]) {
-        z_mod -= moveSpeed; 
-        std::cout << "CurrZ: " << z_mod << std::endl;
-    } 
-    if (keyStates[GLFW_KEY_X]) {
-        z_mod += moveSpeed; 
-        std::cout << "CurrZ: " << z_mod << std::endl;
-    } 
+    else if (!keyStates[GLFW_KEY_SPACE]) {
+        spaceKeyPressed = false;
+    }
 
-    if (keyStates[GLFW_KEY_W]) {
-        x_cam += front.x * camSpeed;
-        z_cam += front.z * camSpeed;
-    };
-    if (keyStates[GLFW_KEY_S]) {
-        x_cam -= front.x * camSpeed;
-        z_cam -= front.z * camSpeed;
-    };
-    if (keyStates[GLFW_KEY_A]) {
-        x_cam -= right.x * camSpeed;
-        z_cam -= right.z * camSpeed;
-    };
-    if (keyStates[GLFW_KEY_D]) {
-        x_cam += right.x * camSpeed;
-        z_cam += right.z * camSpeed;
-    };
+    // Camera switching
+    if (keyStates[GLFW_KEY_Z] && !zKeyPressed) {
+        useFrontCamera = !useFrontCamera; // Toggle camera
+        zKeyPressed = true;
+    }
+    else if (!keyStates[GLFW_KEY_Z]) {
+        zKeyPressed = false;
+    }
 
-    if (keyStates[GLFW_KEY_SPACE]) {
-        
+    // Lighting
+    // Morning
+    if (keyStates[GLFW_KEY_Q]) {
+        currentSkybox = dayFacesSkybox;
+        LoadSkyboxTextures(dayFacesSkybox);
+        lightColor = warmLightColor;  // Set to warm light
+        ambientColor = warmLightColor * 0.5f;  // Match ambient to light color
+        pointLightBrightness = 0; // Set point light brightness to 0
     };
-
-
-
-    // Scaling
-    if (keyStates[GLFW_KEY_Q]) scaleVal -= 0.0001f;
-    if (keyStates[GLFW_KEY_E]) scaleVal += 0.0001f;
+    // Night
+    if (keyStates[GLFW_KEY_E]) {
+        currentSkybox = nightFacesSkybox;
+        LoadSkyboxTextures(nightFacesSkybox);
+        lightColor = coldLightColor;  // Set to cold light
+        ambientColor = coldLightColor * 0.5f;  // Match ambient to light color
+        pointLightBrightness = 2; // Set point light brightness to 2
+    };
 
     // Rotation
-    if (keyStates[GLFW_KEY_UP]) pitch += 0.01;
-    if (keyStates[GLFW_KEY_DOWN]) pitch -= 0.01;
+    if (keyStates[GLFW_KEY_UP]) pitch += 0.05;
+    if (keyStates[GLFW_KEY_DOWN]) pitch -= 0.05;
 
-    if (keyStates[GLFW_KEY_LEFT]) yaw -= 0.01;
-    if (keyStates[GLFW_KEY_RIGHT]) yaw += 0.01;
+    if (keyStates[GLFW_KEY_LEFT]) yaw -= 0.05;
+    if (keyStates[GLFW_KEY_RIGHT]) yaw += 0.05;
 }
 
 
@@ -252,8 +311,8 @@ int main(void)
     if (!glfwInit())
         return -1;
 
-    float windowWidth = 640;
-    float windowHeight = 640;
+    float windowWidth = 1080;
+    float windowHeight = 1080;
 
     /* Create a windowed mode window and its OpenGL context */
     window = glfwCreateWindow(windowWidth, windowHeight, "GDGRAP1 Machine Project-Ruiz_Marlou Vincent-Obcena_Zion", NULL, NULL);
@@ -267,111 +326,160 @@ int main(void)
     glfwMakeContextCurrent(window);
     gladLoadGL();
 
+    startTime = glfwGetTime();
 
-    GLfloat UV[]{
-        0.f, 1.f,
-        0.f, 0.f,
-        1.f, 1.f,
-        1.f, 0.f,
-        1.f, 1.f,
-        1.f, 0.f,
-        0.f, 1.f,
-        0.f, 0.f
-    };
-
-    stbi_set_flip_vertically_on_load(true);
-    int img_width, img_height, color_channels;
-    //3 == RGB: JPGS no transparency
-    //4 == RGBA PNGS with transparency 
-
-    unsigned char* tex_bytes = stbi_load(
-        "3D/brickwall.jpg",
-        &img_width,
-        &img_height,
-        &color_channels,
-        0
-    );
-
-
-    //          MinX MinY Width Height
-    //glViewport(320, 0, 640/2, 480);
-
+    glfwSetCursorPosCallback(window, Mouse_Callback);
     glfwSetKeyCallback(window, Key_Callback);
 
+    // Shaders
+    Shader mainShader("Shaders/sample.vert", "Shaders/sample.frag");
+    Shader skyboxShader("Shaders/skybox.vert", "Shaders/skybox.frag");
+    Shader noNormalShader("Shaders/nonormal.vert", "Shaders/nonormal.frag");
 
-    std::fstream vertSrc("Shaders/sample.vert");
-    std::stringstream vertBuff;
-    //Add the file stream to the string stream
-    vertBuff << vertSrc.rdbuf();
+    LightManager lightManager;
 
-    std::string vertS = vertBuff.str();
-    const char* v = vertS.c_str();
-    ///////////////////////////////////////////
-    std::fstream fragSrc("Shaders/sample.frag");
-    std::stringstream fragBuff;
-    //Add the file stream to the string stream
-    fragBuff << fragSrc.rdbuf();
+    // Lights
+    PointLight pLight1(
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
+    );
 
-    std::string fragS = fragBuff.str();
-    const char* f = fragS.c_str();
+    PointLight pLight2(
+        glm::vec3(0.0f, 5.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        1.f
+    );
 
+    PointLight pLight3(
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
+    );
 
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &v, NULL);
-    glCompileShader(vertexShader);
+    PointLight pLight4(
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
+    );
 
+    PointLight pLight5(
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
+    );
 
-    GLuint fragShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragShader, 1, &f, NULL);
-    glCompileShader(fragShader);
+    PointLight pLight6(
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
+    );
 
+    // Add point lights
+    lightManager.AddPointLight(pLight1);
+    lightManager.AddPointLight(pLight2);
+    lightManager.AddPointLight(pLight3);
+    lightManager.AddPointLight(pLight4);
+    lightManager.AddPointLight(pLight5);
+    lightManager.AddPointLight(pLight6);
 
-    GLuint shaderProg = glCreateProgram();
+    DirectionalLight directionalLight(
+        glm::vec3(0.0f, 30.0f, -50.0f),   // Position
+        glm::vec3(5.0f, -10.0f, -50.0f),  // Target
+        lightColor,                       // Color
+        1.f                               // Brightness
+    );
 
-    glAttachShader(shaderProg, vertexShader);
-    glAttachShader(shaderProg, fragShader);
+    Model3D kartModel(
+        "3D/Kart/GoKart.obj",          // Model path
+        "3D/Kart/GoKart.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
+    Model3D ghostModel1(
+        "3D/Kart2/ghostKart1.obj",          // Model path
+        "3D/Kart2/ghostKart1.png",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
-    glLinkProgram(shaderProg);
+    Model3D ghostModel2(
+        "3D/Kart3/ghostKart2.obj",          // Model path
+        "3D/Kart3/ghostKart2.png",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
-    /////////////////////////////SKYBOX SHADER///////////////////////////////////////
-    std::fstream sky_vertSrc("Shaders/skybox.vert");
-    std::stringstream sky_vertBuff;
-    sky_vertBuff << sky_vertSrc.rdbuf();
+    Model3D roadModel1(
+        "3D/plane.obj",          // Model path
+        "3D/road-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
-    std::string sky_vertS = sky_vertBuff.str();
-    const char* sky_v = sky_vertS.c_str();
+    Model3D roadModel2(
+        "3D/plane.obj",          // Model path
+        "3D/road-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
-    std::fstream sky_fragSrc("Shaders/skybox.frag");
-    std::stringstream sky_fragBuff;
-    sky_fragBuff << sky_fragSrc.rdbuf();
-    std::string sky_fragS = sky_fragBuff.str();
-    const char* sky_f = sky_fragS.c_str();
+    Model3D roadModel3(
+        "3D/plane.obj",          // Model path
+        "3D/road-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
-    GLuint sky_vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(sky_vertexShader, 1, &sky_v, NULL);
-    glCompileShader(sky_vertexShader);
+    Model3D roadModel4(
+        "3D/plane.obj",          // Model path
+        "3D/road-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
-    GLuint sky_fragShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(sky_fragShader, 1, &sky_f, NULL);
-    glCompileShader(sky_fragShader);
+    Model3D roadModel5(
+        "3D/plane.obj",          // Model path
+        "3D/roadFinish-texture.jpg",        // Texture path (optional)
+        "",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
-    GLuint skyboxShaderProg = glCreateProgram();
-    glAttachShader(skyboxShaderProg, sky_vertexShader);
-    glAttachShader(skyboxShaderProg, sky_fragShader);
+    Model3D landmark1(
+        "3D/Landmark/landmark1.obj",          // Model path
+        "3D/Landmark/landmark1.jpeg",        // Texture path (optional)
+        "3D/Landmark/landmark1_norm.jpeg",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
-    glLinkProgram(skyboxShaderProg);
-    ////////////////////////////////////////////////////////////////////////////////
+    Model3D landmark2(
+        "3D/Landmark/landmark2.obj",          // Model path
+        "3D/Landmark/landmark2.jpg",        // Texture path (optional)
+        "3D/Landmark/landmark2_norm.jpg",     // Normal map path (optional)
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial position
+        glm::vec3(0.0f, 0.0f, 0.0f),  // Initial rotation (degrees)
+        glm::vec3(50.0f, 50.0f, 50.0f)   // Initial scale
+    );
 
-    /*
-      7--------6
-     /|       /|
-    4--------5 |
-    | |      | |
-    | 3------|-2
-    |/       |/
-    0--------1
-    */
     //Vertices for the cube
     float skyboxVertices[]{
     -1.f, -1.f, 1.f, //0
@@ -423,490 +531,116 @@ int main(void)
     glEnableVertexAttribArray(0);
     //////////////////////////////////////////////////////////////////////////////////////////////
 
-	//Day time skybox
-    std::string dayFacesSkybox[]{
-    "Skybox/Day/day_rt.png",
-    "Skybox/Day/day_lf.png",
-    "Skybox/Day/day_up.png",
-    "Skybox/Day/day_dn.png",
-    "Skybox/Day/day_ft.png",
-    "Skybox/Day/day_bk.png"
-    };
-
-    //night time skybox
-    std::string nightFacesSkybox[]{
-    "Skybox/Night/night_rt.png",
-    "Skybox/Night/night_lf.png",
-    "Skybox/Night/night_up.png",
-    "Skybox/Night/night_dn.png",
-    "Skybox/Night/night_ft.png",
-    "Skybox/Night/night_bk.png"
-    };
-
-    unsigned int skyboxTex;
-
     glGenTextures(1, &skyboxTex);
     glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
 
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    for (unsigned int i = 0; i < 6; i++) {
-        int w, h, skyCChannel;
-        stbi_set_flip_vertically_on_load(false);
-
-        unsigned char* data = stbi_load(
-            nightFacesSkybox[i].c_str(),
-            &w,
-            &h,
-            &skyCChannel,
-            0
-        );
-
-        if (data) {
-            glTexImage2D(
-                GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-                0,
-                GL_RGB,
-                w,
-                h,
-                0,
-                GL_RGB,
-                GL_UNSIGNED_BYTE,
-                data
-            );
-        }
-        stbi_image_free(data);
-
-    }
-    stbi_set_flip_vertically_on_load(true);
-
-    std::string path = "3D/plane.obj";
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> material;
-    std::string warning, error;
-
-    tinyobj::attrib_t attributes;
-
-    bool success = tinyobj::LoadObj(
-        &attributes,
-        &shapes,
-        &material,
-        &warning,
-        &error,
-        path.c_str()
-    );
-
-    std::vector<GLuint> mesh_indices;
-
-    for (int i = 0; i < shapes[0].mesh.indices.size(); i++) {
-        mesh_indices.push_back(shapes[0].mesh.indices[i].vertex_index);
-    }
-
-
-	std::vector<glm::vec3> tangents;
-	std::vector<glm::vec3> bitangents;
-
-    for (int i = 0; i < shapes[0].mesh.indices.size(); i += 3) {
-
-		tinyobj::index_t vData1 = shapes[0].mesh.indices[i];
-        tinyobj::index_t vData2 = shapes[0].mesh.indices[i+1];
-        tinyobj::index_t vData3 = shapes[0].mesh.indices[i+2];
-
-		glm::vec3 v1 = glm::vec3(
-			attributes.vertices[vData1.vertex_index * 3],
-			attributes.vertices[vData1.vertex_index * 3 + 1],
-			attributes.vertices[vData1.vertex_index * 3 + 2]
-		);
-
-        glm::vec3 v2 = glm::vec3(
-            attributes.vertices[vData2.vertex_index * 3],
-            attributes.vertices[vData2.vertex_index * 3 + 1],
-            attributes.vertices[vData2.vertex_index * 3 + 2]
-        );
-
-        glm::vec3 v3 = glm::vec3(
-            attributes.vertices[vData3.vertex_index * 3],
-            attributes.vertices[vData3.vertex_index * 3 + 1],
-            attributes.vertices[vData3.vertex_index * 3 + 2]
-        );
-
-		glm::vec2 uv1 = glm::vec2(
-			attributes.texcoords[vData1.texcoord_index * 2],
-			attributes.texcoords[vData1.texcoord_index * 2 + 1]
-		);
-
-        glm::vec2 uv2 = glm::vec2(
-            attributes.texcoords[vData2.texcoord_index * 2],
-            attributes.texcoords[vData2.texcoord_index * 2 + 1]
-        );
-
-        glm::vec2 uv3 = glm::vec2(
-            attributes.texcoords[vData3.texcoord_index * 2],
-            attributes.texcoords[vData3.texcoord_index * 2 + 1]
-        );
-
-
-		glm::vec3 deltaPos1 = v2 - v1;
-        glm::vec3 deltaPos2 = v3 - v1;
-
-        glm::vec2 deltaUV1 = uv2 - uv1;
-        glm::vec2 deltaUV2 = uv3 - uv1;
-
-		float r = 1.0f / ((deltaUV1.x * deltaUV2.y) - (deltaUV1.y * deltaUV2.x));
-
-		glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
-		glm::vec3 bitangent = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x) * r;
-
-		tangents.push_back(tangent);
-        tangents.push_back(tangent);
-        tangents.push_back(tangent);
-
-		bitangents.push_back(bitangent);
-		bitangents.push_back(bitangent);
-		bitangents.push_back(bitangent);
-    }
-
-    std::vector<GLfloat> fullVertexData;
-    for (int i = 0; i < shapes[0].mesh.indices.size(); i++) {
-        tinyobj::index_t vData = shapes[0].mesh.indices[i];
-
-        fullVertexData.push_back(
-            attributes.vertices[(vData.vertex_index * 3)]
-        );
-
-        fullVertexData.push_back(
-            attributes.vertices[(vData.vertex_index * 3) + 1]
-        );
-
-        fullVertexData.push_back(
-            attributes.vertices[(vData.vertex_index * 3) + 2]   
-        );
-
-        fullVertexData.push_back(
-            attributes.normals[(vData.normal_index * 3)]
-        );
-
-        fullVertexData.push_back(
-            attributes.normals[(vData.normal_index * 3) + 1]
-        );
-
-        fullVertexData.push_back(
-            attributes.normals[(vData.normal_index * 3) + 2]
-        );
-
-        //UV
-        fullVertexData.push_back(
-            attributes.texcoords[(vData.texcoord_index * 2)]
-        );
-
-        fullVertexData.push_back(
-            attributes.texcoords[(vData.texcoord_index * 2) + 1]
-        );
-
-		fullVertexData.push_back(
-			tangents[i].x
-		);
-
-        fullVertexData.push_back(
-			tangents[i].y
-        );
-
-        fullVertexData.push_back(
-            tangents[i].z
-        );
-
-		fullVertexData.push_back(
-			bitangents[i].x
-		);
-
-        fullVertexData.push_back(
-            bitangents[i].y
-        );
-
-        fullVertexData.push_back(
-            bitangents[i].z
-        );
-    }
-
-
-    GLfloat vertices[]{
-        //x    y    z
-        0.f, 0.5f, 0.f,
-        -0.5f, 0.f, 0.f,
-        0.5f, 0.f, 0.f
-    };
-
-    GLuint indices[]{
-        0,1,2
-    };
-
-
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    //currTex = texture = tex0
-
-    //tile x
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    //tile y
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-                 //GL_RGB == 3 channels
-        GL_RGB, //4 channels, transparency
-        img_width,
-        img_height,
-        0, //border
-        GL_RGB,
-        GL_UNSIGNED_BYTE,
-        tex_bytes
-    );
-    glGenerateMipmap(GL_TEXTURE_2D);
-    stbi_image_free(tex_bytes);
-
-    tex_bytes = stbi_load(
-        "3D/brickwall_normal.jpg",
-        &img_width,
-        &img_height,
-        &color_channels,
-        0
-    );
-
-	GLuint norm_tex;
-	glGenTextures(1, &norm_tex);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, norm_tex);
-    //tile x
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    //tile y
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-	glTexImage2D(
-		GL_TEXTURE_2D,
-		0,
-		//GL_RGB == 3 channels
-		GL_RGB, //4 channels, transparency
-		img_width,
-		img_height,
-		0, //border
-		GL_RGB,
-		GL_UNSIGNED_BYTE,
-		tex_bytes
-	);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	stbi_image_free(tex_bytes);
-
-
-
-    // ID of VAO, VBO
-    GLuint VAO, VBO;
-    //generate VAO and assign the ID to variable
-    glGenVertexArrays(1, &VAO);
-    //generate VBO and assign the ID to variable
-    glGenBuffers(1, &VBO);
-
-    //current VAO = null
-
-    glBindVertexArray(VAO); // current VAO = VAO
-
-    //current VBO = null
-    glBindBuffer(GL_ARRAY_BUFFER, VBO); //current VBO = VBO
-    // currVAO.VBO.append(VBO)
-
-    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * fullVertexData.size(), fullVertexData.data(), GL_STATIC_DRAW);
-
-
-    glVertexAttribPointer(
-        0, 
-        3, 
-        GL_FLOAT, 
-        GL_FALSE, 
-        14 * sizeof(float), 
-        (void*)0
-    );
-
-    //normal
-    GLintptr normalPtr = 3 * sizeof(float);
-    glVertexAttribPointer(
-        1,                       
-        3,                         
-        GL_FLOAT,
-        GL_FALSE,
-        14 * sizeof(float),         
-        (void*)normalPtr
-    );
-
-    GLintptr uvPtr = 6 * sizeof(float);
-    glVertexAttribPointer(
-        2,                         
-        2,                         
-        GL_FLOAT,
-        GL_FALSE,
-        14 * sizeof(float),         
-        (void*)uvPtr
-    );
-
-	GLintptr tangentPtr = 8 * sizeof(float);
-	GLintptr bitangentPtr = 11 * sizeof(float);
-
-	glVertexAttribPointer(
-		3,
-		3,
-		GL_FLOAT,
-		GL_FALSE,
-		14 * sizeof(float),
-		(void*)tangentPtr
-	);
-
-    glVertexAttribPointer(
-        4,
-        3,
-        GL_FLOAT,
-        GL_FALSE,
-        14 * sizeof(float),
-        (void*)bitangentPtr
-    );
-
-
-    //0 Position
-    //1 ??
-    //2 UV / Texture data
-
-    glEnableVertexAttribArray(0); //enable attrib index 0
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2); //enable attrib index 2
-    glEnableVertexAttribArray(3);
-    glEnableVertexAttribArray(4);
-
-    //current VBO = VBO
-    glBindBuffer(GL_ARRAY_BUFFER, 0); //current VBO = null
-
-    //current VAO = VAO
-    glBindVertexArray(0); //current VAO = null
-
-    float radius = 0.5f;
-    float prevAngle = 0;
-    float yOffset = 0.54;
+    // Set skybox to morning
+    currentSkybox = dayFacesSkybox;
+    LoadSkyboxTextures(dayFacesSkybox);
+    lightColor = warmLightColor;  // Set to warm light
+    ambientColor = warmLightColor * 0.5f;  // Match ambient to light color
+    isWarmLight = true;
+
+    glm::vec3 lightPos1 = glm::vec3(x_mod, 2.f, z_mod);
 
     glm::mat4 projectionMatrix = glm::perspective(
-        glm::radians(60.0f), //FOV
+        glm::radians(80.0f), //FOV
         windowHeight / windowWidth, //Aspect Ratio
         0.1f, //Z near should never be <= 0
-        100.f //Z far
+        500.f //Z far
     );
 
-
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    //Light position
-    glm::vec3 lightPos = glm::vec3(-10, 3, 0);
-    //light color
-    glm::vec3 lightColor = glm::vec3(1, 1, 1); 
-
-    float brightness = 10;
-
-
-    //Ambient Color
-    glm::vec3 ambientColor = lightColor;
-    //Ambient Str
-    float ambientStr = 0.5f;
-    
-    float specStr = 3.0f;
-    float specPhong = 20;
 
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
+        double currentTime = glfwGetTime();
+        double elapsedTime = currentTime ;
+
+        static int lastPrintedSecond = -1;
+
+        if (elapsedTime < 5.0) {
+            int remainingTime = static_cast<int>(5.0 - elapsedTime) + 1; // Calculate remaining time and round up
+            if (remainingTime != lastPrintedSecond) {
+                std::cout << "Countdown: " << remainingTime << " seconds remaining" << std::endl;
+                lastPrintedSecond = remainingTime;
+            }
+        }
+        else {
+            if (countdownActive) {
+                std::cout << "Lights out and away we go!" << std::endl;
+                countdownActive = false; // Stop the countdown after 5 seconds
+            }
+        }
+
         ProcessInput();
 
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        //Position Matrix
-        glm::vec3 cameraPos = glm::vec3(0 + x_cam, 0 + y_cam, 0 + z_cam); //eye
-        glm::mat4 cameraPosMatrix = glm::translate(glm::mat4(1.0f), cameraPos * -1.0f);
+        // Orientation
+        glm::vec3 worldUp = glm::normalize(glm::vec3(0.0f, 1.0f, 0.0f)); // Pointing upwards
 
-        //Orientation
-        glm::vec3 worldUp = glm::normalize(glm::vec3(0.0f, 1.0f , 0.0f )); //Pointing upwards
+        glm::vec3 thirdPerson_front;
+        thirdPerson_front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        thirdPerson_front.y = sin(glm::radians(pitch));
+        thirdPerson_front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+        thirdPerson_front = glm::normalize(thirdPerson_front);
 
-        glm::vec3 front;
-        front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-        front.y = sin(glm::radians(pitch));
-        front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-        front = glm::normalize(front);
+        glm::vec3 firstPerson_front;
+        firstPerson_front.x = cos(glm::radians(frontCamYaw)) * cos(glm::radians(frontCamPitch));
+        firstPerson_front.y = sin(glm::radians(frontCamPitch));
+        firstPerson_front.z = sin(glm::radians(frontCamYaw)) * cos(glm::radians(frontCamPitch));
+        firstPerson_front = glm::normalize(firstPerson_front);
 
- 
-        glm::vec3 cameraCenter = cameraPos + front;
+        glm::vec3 cameraPos;
 
-        //Forward
-        glm::vec3 F = cameraCenter - cameraPos;
-        F = glm::normalize(F);
+        glm::mat4 viewMatrix;
+        if (useFrontCamera) {
+            // Position Matrix for the front camera
+            cameraPos = glm::vec3(3 + x_mod, 2.8, z_mod); // Adjust the position to be in front of the car
+            glm::vec3 cameraCenter = cameraPos + firstPerson_front;
 
-        //R = F X WorldUp
-        glm::vec3 R = glm::cross(F, worldUp);
-        //U = R X F
-        glm::vec3 U = glm::cross(R, F);
+            viewMatrix = glm::lookAt(cameraPos, cameraCenter, worldUp);
+        }
+        else {
+            // Position Matrix for the main camera
+            cameraPos = glm::vec3(-15 + x_mod, 10 + y_mod, 0 + z_mod); // eye
+            glm::vec3 cameraCenter = cameraPos + thirdPerson_front;
 
-        glm::mat4 cameraOrientation = glm::mat4(1.);
-        //Matrix [Column][Row]
-        //Row 1 = R
-        cameraOrientation[0][0] = R.x;
-        cameraOrientation[1][0] = R.y;
-        cameraOrientation[2][0] = R.z;
-
-        //Row 2 = U
-        cameraOrientation[0][1] = U.x;
-        cameraOrientation[1][1] = U.y;
-        cameraOrientation[2][1] = U.z;
-
-        //Row 3 = -F
-        cameraOrientation[0][2] = -F.x;
-        cameraOrientation[1][2] = -F.y;
-        cameraOrientation[2][2] = -F.z;
-        //end of Orientation Matrix
-
-        glm::mat4 viewMatrix = glm::lookAt(cameraPos, cameraCenter, worldUp);
+            viewMatrix = glm::lookAt(cameraPos, cameraCenter, worldUp);
+        }
 
         glDepthMask(GL_FALSE);
         glDepthFunc(GL_LEQUAL);
 
-
-        glUseProgram(skyboxShaderProg);
+        /////////////////////////////////////////// SKYBOX SHADER ///////////////////////////////////////////
+        skyboxShader.use();
         glm::mat4 sky_view = glm::mat4(1.0);
         sky_view = glm::mat4(
             glm::mat3(viewMatrix)
         );
-
-        unsigned int sky_projectionLoc = glGetUniformLocation(skyboxShaderProg, "projection");
+        unsigned int sky_projectionLoc = glGetUniformLocation(skyboxShader.ID, "projection");
         glUniformMatrix4fv(sky_projectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-
-        unsigned int sky_viewLoc = glGetUniformLocation(skyboxShaderProg, "view");
+        unsigned int sky_viewLoc = glGetUniformLocation(skyboxShader.ID, "view");
         glUniformMatrix4fv(sky_viewLoc, 1, GL_FALSE, glm::value_ptr(sky_view));
 
-
         glBindVertexArray(skyboxVAO);
+        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
-
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-
         glDepthMask(GL_TRUE);
         glDepthFunc(GL_LESS);
-
-        glUseProgram(shaderProg);
-
+        /////////////////////////////////////////// SKYBOX SHADER ///////////////////////////////////////////
         //translation
         glm::mat4 transformation_matrix = glm::translate(identity_matrix, glm::vec3(x_mod, y_mod, z_mod));
 
@@ -918,58 +652,324 @@ int main(void)
         transformation_matrix = glm::rotate(transformation_matrix, glm::radians(thetaY), glm::vec3(0, 1, 0)); 
         transformation_matrix = glm::rotate(transformation_matrix, glm::radians(thetaZ), glm::vec3(0, 0, 1)); 
 
-        unsigned int viewLoc = glGetUniformLocation(shaderProg, "view");
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+        ////////////////////////////////////////// NO NORMAL SHADER /////////////////////////////////////////////
+        noNormalShader.use();
+        directionalLight.SetColor(lightColor);
+        directionalLight.UpdateLightProperties(noNormalShader.ID);
+        unsigned int noNormalviewLoc = glGetUniformLocation(noNormalShader.ID, "view");
+        glUniformMatrix4fv(noNormalviewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
 
-        unsigned int projLoc = glGetUniformLocation(shaderProg, "projection");
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+        unsigned int noNormalprojLoc = glGetUniformLocation(noNormalShader.ID, "projection");
+        glUniformMatrix4fv(noNormalprojLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
-        unsigned int transformLoc = glGetUniformLocation(shaderProg, "transform");
-        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transformation_matrix));
+        GLuint noNormalambientStrAddress = glGetUniformLocation(noNormalShader.ID, "ambientStr");
+        glUniform1f(noNormalambientStrAddress, ambientStr);
 
+        GLuint noNormalambientColorAddress = glGetUniformLocation(noNormalShader.ID, "ambientColor");
+        glUniform3fv(noNormalambientColorAddress, 1, glm::value_ptr(ambientColor));
 
-        glBindTexture(GL_TEXTURE_2D, texture);
+        GLuint noNormalcameraPosAddress = glGetUniformLocation(noNormalShader.ID, "cameraPos");
+        glUniform3fv(noNormalcameraPosAddress, 1, glm::value_ptr(cameraPos));
 
-        GLuint lightAddress = glGetUniformLocation(shaderProg, "lightPos");
-        glUniform3fv(lightAddress, 1, glm::value_ptr(lightPos));
+        GLuint noNormalspecStrAddress = glGetUniformLocation(noNormalShader.ID, "specStr");
+        glUniform1f(noNormalspecStrAddress, specStr);
 
-        GLuint lightColorAddress = glGetUniformLocation(shaderProg, "lightColor");
-        glUniform3fv(lightColorAddress, 1, glm::value_ptr(lightColor));
+        GLuint noNormalspecPhongAddress = glGetUniformLocation(noNormalShader.ID, "specPhong");
+        glUniform1f(noNormalspecPhongAddress, specPhong);
 
-        GLuint brightnessAddress = glGetUniformLocation(shaderProg, "brightness");
-        glUniform1f(brightnessAddress, brightness);
-
-
-        GLuint ambientStrAddress = glGetUniformLocation(shaderProg, "ambientStr");
-        glUniform1f(ambientStrAddress, ambientStr);
-
-        GLuint ambientColorAddress = glGetUniformLocation(shaderProg, "ambientColor");
-        glUniform3fv(ambientColorAddress, 1, glm::value_ptr(ambientColor));
-
-
-
-        GLuint cameraPosAddress = glGetUniformLocation(shaderProg, "cameraPos");
-        glUniform3fv(cameraPosAddress, 1, glm::value_ptr(cameraPos));
-
-        GLuint specStrAddress = glGetUniformLocation(shaderProg, "specStr");
-        glUniform1f(specStrAddress, specStr);
-
-        GLuint specPhongAddress = glGetUniformLocation(shaderProg, "specPhong");
-        glUniform1f(specPhongAddress, specPhong);
-
-		glActiveTexture(GL_TEXTURE0);
-        GLuint tex0Address = glGetUniformLocation(shaderProg, "tex0");
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glUniform1i(tex0Address, 0);
+        // KART MODEL
+        glActiveTexture(GL_TEXTURE0);
+        GLuint tex0Address1 = glGetUniformLocation(mainShader.ID, "tex0");
+        glBindTexture(GL_TEXTURE_2D, kartModel.texture);
+        glUniform1i(tex0Address1, 0);
 
         glActiveTexture(GL_TEXTURE1);
-        GLuint tex1Address = glGetUniformLocation(shaderProg, "norm_tex");
-        glBindTexture(GL_TEXTURE_2D, norm_tex);
-        glUniform1i(tex1Address, 1);
+        GLuint tex1Address1 = glGetUniformLocation(mainShader.ID, "norm_tex");
+        glBindTexture(GL_TEXTURE_2D, kartModel.normalMap);
+        glUniform1i(tex1Address1, 1);
 
-        glUseProgram(shaderProg);
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, fullVertexData.size() / 14);
+        kartModel.updateTransform(
+            0, 180 + thetaY, 0,  // Rotation
+            x_mod, 1.7, z_mod,     // Position
+            1                 // Scale
+        );
+
+        kartModel.draw(noNormalShader.ID);
+
+        ///////////////////////////////////
+
+        ////////// GHOST MODEL 1 //////////
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ghostModel1.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, ghostModel1.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        ghostModel1.updateTransform(
+            0, 90, 0,  // Rotation
+            ghost1x_mod, 0.7, ghost1z_mod,     // Position
+            0.5                 // Scale
+        );
+
+        // Set the alpha value for transparency
+        float alpha = 0.5f; // Adjust this value to control transparency (0.0f to 1.0f)
+        GLuint alphaLoc = glGetUniformLocation(mainShader.ID, "alpha");
+        glUniform1f(alphaLoc, alpha);
+
+        ghostModel1.draw(noNormalShader.ID);  // Pass the shader program ID
+
+        glDisable(GL_BLEND); // Disable blending after drawing
+
+        ///////////////////////////////////
+
+        ////////// GHOST MODEL 2 //////////
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ghostModel2.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, ghostModel2.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        ghostModel2.updateTransform(
+            0, 90, 0,  // Rotation
+            ghost2x_mod, 0, ghost2z_mod,     // Position
+            4                 // Scale
+        );
+
+        glUniform1f(alphaLoc, alpha);
+
+        ghostModel2.draw(noNormalShader.ID);  // Pass the shader program ID
+
+        glDisable(GL_BLEND); // Disable blending after drawing
+
+        // ROAD MODEL 1
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel1.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel1.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel1.updateTransform(
+            90, 0, 0,  // Rotation
+            0, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 2
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel2.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel2.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel2.updateTransform(
+            90, 0, 0,  // Rotation
+            100, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 3 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel3.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel3.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel3.updateTransform(
+            90, 0, 0,  // Rotation
+            200, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 4 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel4.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel4.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel4.updateTransform(
+            90, 0, 0,  // Rotation
+            300, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // ROAD MODEL 5
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, roadModel5.texture);
+        glUniform1i(tex0Address1, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, roadModel5.normalMap);
+        glUniform1i(tex1Address1, 1);
+
+        roadModel5.updateTransform(
+            90, 0, 0,  // Rotation
+            400, 0, 0,     // Position
+            roadScaleVal
+        );
+
+        // Update position point lights
+        lightManager.pointLights[0].SetPosition(glm::vec3(x_mod + 10, 1.7f, z_mod - 2));
+        lightManager.pointLights[1].SetPosition(glm::vec3(x_mod + 10, 1.7f, z_mod + 2));
+        lightManager.pointLights[2].SetPosition(glm::vec3(ghost1x_mod + 12, 1.7f, ghost1z_mod - 1));
+        lightManager.pointLights[3].SetPosition(glm::vec3(ghost1x_mod + 12, 1.7f, ghost1z_mod + 1));
+        lightManager.pointLights[4].SetPosition(glm::vec3(ghost2x_mod + 10, 1.7f, ghost2z_mod - 2));
+        lightManager.pointLights[5].SetPosition(glm::vec3(ghost2x_mod + 10, 1.7f, ghost2z_mod + 2));
+
+        // Update intensity of point lights depending on active skybox
+        for (int i = 0; i < 6; i++)
+        {
+            lightManager.pointLights[i].SetIntensity(pointLightBrightness);
+        }
+
+        lightManager.UploadLights(noNormalShader.ID);
+        roadModel1.draw(noNormalShader.ID);  // Pass the shader program ID
+        roadModel2.draw(noNormalShader.ID);  // Pass the shader program ID
+        roadModel3.draw(noNormalShader.ID);  // Pass the shader program ID
+        roadModel4.draw(noNormalShader.ID);  // Pass the shader program ID
+        roadModel5.draw(noNormalShader.ID);  // Pass the shader program ID
+
+        ///////////////////////////////////// MAIN SHADER ////////////////////////////////////////////////
+        mainShader.use();
+        directionalLight.UpdateLightProperties(mainShader.ID);
+        directionalLight.SetColor(lightColor);
+        unsigned int viewLoc = glGetUniformLocation(mainShader.ID, "view");
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+        unsigned int projLoc = glGetUniformLocation(mainShader.ID, "projection");
+        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+        unsigned int transformLoc = glGetUniformLocation(mainShader.ID, "transform");
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transformation_matrix));
+
+        GLuint ambientStrAddress = glGetUniformLocation(mainShader.ID, "ambientStr");
+        glUniform1f(ambientStrAddress, ambientStr);
+
+        GLuint ambientColorAddress = glGetUniformLocation(mainShader.ID, "ambientColor");
+        glUniform3fv(ambientColorAddress, 1, glm::value_ptr(ambientColor));
+
+        GLuint cameraPosAddress = glGetUniformLocation(mainShader.ID, "cameraPos");
+        glUniform3fv(cameraPosAddress, 1, glm::value_ptr(cameraPos));
+
+        GLuint specStrAddress = glGetUniformLocation(mainShader.ID, "specStr");
+        glUniform1f(specStrAddress, specStr);
+
+        GLuint specPhongAddress = glGetUniformLocation(mainShader.ID, "specPhong");
+        glUniform1f(specPhongAddress, specPhong);
+
+        GLuint tex0Address2 = glGetUniformLocation(mainShader.ID, "tex0");
+        GLuint tex1Address2 = glGetUniformLocation(mainShader.ID, "norm_tex");
+
+        // LANDMARK MODEL 1
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, landmark1.texture);
+        glUniform1i(tex0Address2, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, landmark1.normalMap);
+        glUniform1i(tex1Address2, 1);
+
+        landmark1.updateTransform(
+            0, 0, 0,  // Rotation
+            410, 25, -20,     // Position
+            10                 // Scale
+        );
+
+        landmark1.draw(mainShader.ID);  // Pass the shader program ID
+
+        // Ensure the shader program is used before drawing the second landmark
+        mainShader.use();
+
+        // LANDMARK MODEL 2
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, landmark2.texture);
+        glUniform1i(tex0Address2, 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, landmark2.normalMap);
+        glUniform1i(tex1Address2, 1);
+
+        landmark2.updateTransform(
+            0, 270, 0,  // Rotation
+            410, 0, 20,     // Position
+            2.5                 // Scale
+        );
+
+        landmark2.draw(mainShader.ID);  // Pass the shader program ID
+
+        if (x_mod >= 380.f && playerFinished == false) {
+            playerFinished = true;
+            // Record player's lap time.
+            std::cout << "Player has crossed the finish line!" << std::endl;
+            if (playerTimeRecorded == false) {
+
+                playerLapTime = elapsedTime - 5;
+                playerTimeRecorded = true;
+            }
+        }
+
+        if (ghost1x_mod < 380.f && countdownActive == false && ghost1Finished == false) {
+            // Ghost keeps moving while player hasn't press spacebar
+            if (!ghostPaused) {
+                ghost1x_mod += ghost1Speed;
+            }
+        }
+        // Records ghost's lap time
+        else if (ghost1x_mod >= 380.f && ghost1Finished == false) {
+            ghost1Finished = true;
+            std::cout << "Ghost 1 has crossed the finish line!" << std::endl;
+            if (ghost1TimeRecorded == false) {
+
+                ghost1LapTime = elapsedTime - 5;
+                ghost1TimeRecorded = true;
+            }
+        }
+
+
+        if (ghost2x_mod < 380.f && countdownActive == false && ghost2Finished == false) {
+            // Ghost keeps moving while player hasn't press spacebar
+            if (!ghostPaused) {
+                ghost2x_mod += ghost2Speed;
+            }
+        }
+        // Records ghost's lap time
+        else if (ghost2x_mod >= 380.f && ghost2Finished == false) {
+            ghost2Finished = true;
+            std::cout << "Ghost 2 has crossed the finish line!" << std::endl;
+            if (ghost2TimeRecorded == false) {
+
+                ghost2LapTime = elapsedTime - 5;
+                ghost2TimeRecorded = true;
+            }
+        }
+
+        // The race is finished when all karts reach the finish line
+        if (playerFinished && ghost1Finished && ghost2Finished) {
+            if (raceFinished != true) {
+                std::cout << "[][][][][][] GDGRAP1 GRAND PRIX HAS CONCLUDED [][][][][][]" << std::endl;
+                std::cout << "Player Lap Time : " << playerLapTime << std::endl;
+                std::cout << "Ghost 1 Lap Time: " << ghost1LapTime << std::endl;
+                std::cout << "Ghost 2 Lap Time: " << ghost2LapTime << std::endl;
+                std::cout << "[][][][][][][][][][][][][][][][][][][][][][][][][][][][][]" << std::endl;
+                raceFinished = true;
+            }
+        }
 
         glfwSwapBuffers(window);
 

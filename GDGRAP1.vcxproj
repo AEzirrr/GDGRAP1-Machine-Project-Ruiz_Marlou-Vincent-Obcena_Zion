@@ -143,6 +143,10 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="camera.h" />
+    <ClInclude Include="light.h" />
+    <ClInclude Include="model.h" />
+    <ClInclude Include="shader.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="tiny_obj_loader.h" />
   </ItemGroup>
@@ -163,6 +167,8 @@
     </CopyFileToFolders>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Shaders\nonormal.frag" />
+    <None Include="Shaders\nonormal.vert" />
     <None Include="Shaders\skybox.frag" />
     <None Include="Shaders\skybox.vert" />
   </ItemGroup>
