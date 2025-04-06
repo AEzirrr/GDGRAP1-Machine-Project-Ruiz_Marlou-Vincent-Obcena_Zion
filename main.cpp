@@ -90,10 +90,6 @@ double ghost2LapTime;
 
 //////////////////////////////////
 
-
-
-//glm::mat4 identity_matrix(1.0);
-
 bool isPressedD, isPressedA, isPressedW, isPressedS, 
 isPressedQ, isPressedE, isPressedZ, isPressedX,
 isPressedF, isPressedH, isPressedT, isPressedG, isPressedC, isPressedV,
@@ -122,7 +118,6 @@ std::string nightFacesSkybox[]{
 unsigned int skyboxTex;
 std::string* currentSkybox = nightFacesSkybox;
 bool isDaySkybox = true;
-
 
 void LoadSkyboxTextures(std::string skyboxFaces[]) {
     glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
@@ -181,7 +176,6 @@ void Mouse_Callback(GLFWwindow* window, double xpos, double ypos) {
         firstMouse = true; // Reset the flag when the left mouse button is released
     }
 }
-
 
 void Key_Callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
@@ -283,21 +277,21 @@ void ProcessInput() {
     }
 
     // Lighting
+    // Morning
     if (keyStates[GLFW_KEY_Q]) {
         currentSkybox = dayFacesSkybox;
         LoadSkyboxTextures(dayFacesSkybox);
         lightColor = warmLightColor;  // Set to warm light
         ambientColor = warmLightColor * 0.5f;  // Match ambient to light color
-        isWarmLight = true;
-        pointLightBrightness = 0;
+        pointLightBrightness = 0; // Set point light brightness to 0
     };
+    // Night
     if (keyStates[GLFW_KEY_E]) {
         currentSkybox = nightFacesSkybox;
         LoadSkyboxTextures(nightFacesSkybox);
         lightColor = coldLightColor;  // Set to cold light
         ambientColor = coldLightColor * 0.5f;  // Match ambient to light color
-        isWarmLight = false;
-        pointLightBrightness = 2;
+        pointLightBrightness = 2; // Set point light brightness to 2
     };
 
     // Rotation
@@ -332,12 +326,7 @@ int main(void)
     glfwMakeContextCurrent(window);
     gladLoadGL();
 
-
     startTime = glfwGetTime();
-
-
-    //          MinX MinY Width Height
-    //glViewport(320, 0, 640/2, 480);
 
     glfwSetCursorPosCallback(window, Mouse_Callback);
     glfwSetKeyCallback(window, Key_Callback);
@@ -351,9 +340,9 @@ int main(void)
 
     // Lights
     PointLight pLight1(
-        glm::vec3(0.0f, 5.0f, 0.0f),
-        glm::vec3(1.0f, 1.0f, 1.0f),
-        1.f
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
     );
 
     PointLight pLight2(
@@ -363,29 +352,30 @@ int main(void)
     );
 
     PointLight pLight3(
-        glm::vec3(0.0f, 5.0f, 0.0f),
-        glm::vec3(1.0f, 1.0f, 1.0f),
-        1.f
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
     );
 
     PointLight pLight4(
-        glm::vec3(0.0f, 5.0f, 0.0f),
-        glm::vec3(1.0f, 1.0f, 1.0f),
-        1.f
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
     );
 
     PointLight pLight5(
-        glm::vec3(0.0f, 5.0f, 0.0f),
-        glm::vec3(1.0f, 1.0f, 1.0f),
-        1.f
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
     );
 
     PointLight pLight6(
-        glm::vec3(0.0f, 5.0f, 0.0f),
-        glm::vec3(1.0f, 1.0f, 1.0f),
-        1.f
+        glm::vec3(0.0f, 5.0f, 0.0f), // Position
+        glm::vec3(1.0f, 1.0f, 1.0f), // Color
+        1.f                          // Brightness
     );
 
+    // Add point lights
     lightManager.AddPointLight(pLight1);
     lightManager.AddPointLight(pLight2);
     lightManager.AddPointLight(pLight3);
@@ -394,10 +384,10 @@ int main(void)
     lightManager.AddPointLight(pLight6);
 
     DirectionalLight directionalLight(
-        glm::vec3(0.0f, 30.0f, -50.0f),
-        glm::vec3(5.0f, -10.0f, -50.0f),
-        lightColor,
-        1.f
+        glm::vec3(0.0f, 30.0f, -50.0f),   // Position
+        glm::vec3(5.0f, -10.0f, -50.0f),  // Target
+        lightColor,                       // Color
+        1.f                               // Brightness
     );
 
     Model3D kartModel(
@@ -545,14 +535,13 @@ int main(void)
     glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTex);
 
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-
+    // Set skybox to morning
     currentSkybox = dayFacesSkybox;
     LoadSkyboxTextures(dayFacesSkybox);
     lightColor = warmLightColor;  // Set to warm light
@@ -560,7 +549,6 @@ int main(void)
     isWarmLight = true;
 
     glm::vec3 lightPos1 = glm::vec3(x_mod, 2.f, z_mod);
-
 
     glm::mat4 projectionMatrix = glm::perspective(
         glm::radians(80.0f), //FOV
@@ -635,12 +623,12 @@ int main(void)
         glDepthMask(GL_FALSE);
         glDepthFunc(GL_LEQUAL);
 
+        /////////////////////////////////////////// SKYBOX SHADER ///////////////////////////////////////////
         skyboxShader.use();
         glm::mat4 sky_view = glm::mat4(1.0);
         sky_view = glm::mat4(
             glm::mat3(viewMatrix)
         );
-
         unsigned int sky_projectionLoc = glGetUniformLocation(skyboxShader.ID, "projection");
         glUniformMatrix4fv(sky_projectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         unsigned int sky_viewLoc = glGetUniformLocation(skyboxShader.ID, "view");
@@ -652,7 +640,7 @@ int main(void)
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
         glDepthMask(GL_TRUE);
         glDepthFunc(GL_LESS);
-
+        /////////////////////////////////////////// SKYBOX SHADER ///////////////////////////////////////////
         //translation
         glm::mat4 transformation_matrix = glm::translate(identity_matrix, glm::vec3(x_mod, y_mod, z_mod));
 
@@ -836,16 +824,20 @@ int main(void)
             roadScaleVal
         );
 
+        // Update position point lights
         lightManager.pointLights[0].SetPosition(glm::vec3(x_mod + 10, 1.7f, z_mod - 2));
         lightManager.pointLights[1].SetPosition(glm::vec3(x_mod + 10, 1.7f, z_mod + 2));
         lightManager.pointLights[2].SetPosition(glm::vec3(ghost1x_mod + 12, 1.7f, ghost1z_mod - 1));
         lightManager.pointLights[3].SetPosition(glm::vec3(ghost1x_mod + 12, 1.7f, ghost1z_mod + 1));
         lightManager.pointLights[4].SetPosition(glm::vec3(ghost2x_mod + 10, 1.7f, ghost2z_mod - 2));
         lightManager.pointLights[5].SetPosition(glm::vec3(ghost2x_mod + 10, 1.7f, ghost2z_mod + 2));
+
+        // Update intensity of point lights depending on active skybox
         for (int i = 0; i < 6; i++)
         {
             lightManager.pointLights[i].SetIntensity(pointLightBrightness);
         }
+
         lightManager.UploadLights(noNormalShader.ID);
         roadModel1.draw(noNormalShader.ID);  // Pass the shader program ID
         roadModel2.draw(noNormalShader.ID);  // Pass the shader program ID
@@ -865,15 +857,6 @@ int main(void)
 
         unsigned int transformLoc = glGetUniformLocation(mainShader.ID, "transform");
         glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transformation_matrix));
-
-
-        //GLuint lightAddress = glGetUniformLocation(mainShader.ID, "lightPos");
-        //glUniform3fv(lightAddress, 1, glm::value_ptr(lightPos));
-        //GLuint lightColorAddress = glGetUniformLocation(mainShader.ID, "lightColor");
-        //glUniform3fv(lightColorAddress, 1, glm::value_ptr(lightColor));
-        //GLuint brightnessAddress = glGetUniformLocation(mainShader.ID, "brightness");
-        //glUniform1f(brightnessAddress, brightness);
-
 
         GLuint ambientStrAddress = glGetUniformLocation(mainShader.ID, "ambientStr");
         glUniform1f(ambientStrAddress, ambientStr);
@@ -930,10 +913,9 @@ int main(void)
 
         landmark2.draw(mainShader.ID);  // Pass the shader program ID
 
-
-
         if (x_mod >= 380.f && playerFinished == false) {
             playerFinished = true;
+            // Record player's lap time.
             std::cout << "Player has crossed the finish line!" << std::endl;
             if (playerTimeRecorded == false) {
 
@@ -943,10 +925,12 @@ int main(void)
         }
 
         if (ghost1x_mod < 380.f && countdownActive == false && ghost1Finished == false) {
+            // Ghost keeps moving while player hasn't press spacebar
             if (!ghostPaused) {
                 ghost1x_mod += ghost1Speed;
             }
         }
+        // Records ghost's lap time
         else if (ghost1x_mod >= 380.f && ghost1Finished == false) {
             ghost1Finished = true;
             std::cout << "Ghost 1 has crossed the finish line!" << std::endl;
@@ -957,11 +941,14 @@ int main(void)
             }
         }
 
+
         if (ghost2x_mod < 380.f && countdownActive == false && ghost2Finished == false) {
+            // Ghost keeps moving while player hasn't press spacebar
             if (!ghostPaused) {
                 ghost2x_mod += ghost2Speed;
             }
         }
+        // Records ghost's lap time
         else if (ghost2x_mod >= 380.f && ghost2Finished == false) {
             ghost2Finished = true;
             std::cout << "Ghost 2 has crossed the finish line!" << std::endl;
@@ -972,6 +959,7 @@ int main(void)
             }
         }
 
+        // The race is finished when all karts reach the finish line
         if (playerFinished && ghost1Finished && ghost2Finished) {
             if (raceFinished != true) {
                 std::cout << "[][][][][][] GDGRAP1 GRAND PRIX HAS CONCLUDED [][][][][][]" << std::endl;
@@ -982,8 +970,6 @@ int main(void)
                 raceFinished = true;
             }
         }
-
-
 
         glfwSwapBuffers(window);
 

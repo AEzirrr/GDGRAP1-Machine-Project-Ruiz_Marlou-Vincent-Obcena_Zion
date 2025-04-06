@@ -102,11 +102,12 @@ public:
     }
 };
 
-
+// Class for storing point lights
 class LightManager {
 public:
     std::vector<PointLight> pointLights;
 
+    // Function for adding point light
     void AddPointLight(const PointLight& light) {
         pointLights.push_back(light);
     }

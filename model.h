@@ -323,7 +323,7 @@ public:
         scale = glm::vec3(scaleVal);
     }
 
-    // Modified draw function to handle normal mapping
+    // Draw function for rendering model
     void draw(GLuint shaderProg) {
         glBindVertexArray(VAO);
 
@@ -345,7 +345,7 @@ public:
         unsigned int transformLoc = glGetUniformLocation(shaderProg, "transform");
         glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(getTransform()));
 
-        // Calculate vertex count based on stride
+        // Calculate vertex count
         int elementsPerVertex = 6; // position + normal
         if (hasTexture || hasNormalMap) elementsPerVertex += 2;
         if (hasNormalMap) elementsPerVertex += 6;
