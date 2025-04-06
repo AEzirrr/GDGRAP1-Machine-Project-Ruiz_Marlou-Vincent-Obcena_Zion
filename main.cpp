@@ -568,8 +568,8 @@ int main(void)
 
         static int lastPrintedSecond = -1;
 
-        if (elapsedTime < 5.0) {
-            int remainingTime = static_cast<int>(5.0 - elapsedTime) + 1; // Calculate remaining time and round up
+        if (elapsedTime < 10.0) {
+            int remainingTime = static_cast<int>(10.0 - elapsedTime) + 1; // Calculate remaining time and round up
             if (remainingTime != lastPrintedSecond) {
                 std::cout << "Countdown: " << remainingTime << " seconds remaining" << std::endl;
                 lastPrintedSecond = remainingTime;
@@ -919,7 +919,7 @@ int main(void)
             std::cout << "Player has crossed the finish line!" << std::endl;
             if (playerTimeRecorded == false) {
 
-                playerLapTime = elapsedTime - 5;
+                playerLapTime = elapsedTime - 10;
                 playerTimeRecorded = true;
             }
         }
@@ -936,7 +936,7 @@ int main(void)
             std::cout << "Ghost 1 has crossed the finish line!" << std::endl;
             if (ghost1TimeRecorded == false) {
 
-                ghost1LapTime = elapsedTime - 5;
+                ghost1LapTime = elapsedTime - 10;
                 ghost1TimeRecorded = true;
             }
         }
@@ -954,7 +954,7 @@ int main(void)
             std::cout << "Ghost 2 has crossed the finish line!" << std::endl;
             if (ghost2TimeRecorded == false) {
 
-                ghost2LapTime = elapsedTime - 5;
+                ghost2LapTime = elapsedTime - 10;
                 ghost2TimeRecorded = true;
             }
         }
